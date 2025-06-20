@@ -9,7 +9,6 @@ import TradingProcess from './components/TradingProcess';
 import Footer from './components/Footer';
 import RentPage from './components/RentPage';
 import ProtectedRoute from './components/ProtectedRoute';
-import ScrollToTop from './components/ScrollToTop';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -144,6 +143,14 @@ const AppContent = () => {
     </div>
   );
 };
+
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 
 function App() {
   return (

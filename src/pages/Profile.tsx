@@ -5,6 +5,9 @@ import { useAuth } from '../hooks/useAuth';
 import DownloadCTA from '../components/DownloadCTA';
 import DownloadModal from '../components/DownloadModal';
 
+const DUMMY_ID = 'DUMMY_LOCAL_STEAM_ID';
+const DEFAULT_AVATAR = '/assets/default-avatar.png'; // Place a default avatar image in your public/assets folder
+
 // Helper to try to auto-generate trade link from Steam ID
 const getTradeLinkFromSteamId = (steamId: string) => {
   if (!steamId) return '';
@@ -46,7 +49,39 @@ const Profile = () => {
   const userId = Number(localStorage.getItem('userId'));
   const [showDownloadModal, setShowDownloadModal] = useState(false);
 
+  const isGuest = steamId === DUMMY_ID;
+  const displayProfile = profile || {
+    personaname: 'Guest User',
+    avatarmedium: DEFAULT_AVATAR,
+    steamid: 'N/A',
+  };
+
   useEffect(() => {
+    if (isGuest) {
+      // Only fetch real profile if API key is provided
+      if (apiKey && steamId) {
+        setIsLoadingProfile(true);
+        fetchSteamProfile(steamId, apiKey)
+          .then(realProfile => {
+            if (realProfile) {
+              setProfile(realProfile);
+              setMessage('');
+            } else {
+              setMessage('Failed to fetch Steam profile. Check your API key.');
+            }
+            setIsLoadingProfile(false);
+          })
+          .catch(() => {
+            setMessage('Failed to fetch Steam profile. Check your API key.');
+            setIsLoadingProfile(false);
+          });
+      } else {
+        setProfile(null);
+        setIsLoadingProfile(false);
+      }
+      return;
+    }
+    // Real user logic (original)
     const loadProfile = async () => {
       setIsLoadingProfile(true);
       let localProfile = getSteamProfile();
@@ -92,7 +127,7 @@ const Profile = () => {
       }
     });
     loadProfile();
-  }, [steamId, navigate, userId]);
+  }, [steamId, navigate, userId, apiKey, isGuest]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,7 +160,7 @@ const Profile = () => {
   };
 
   // Determine if using mock profile
-  const isMockProfile = profile && profile.personaname && profile.personaname.startsWith('User_');
+  const isMockProfile = displayProfile && displayProfile.personaname && displayProfile.personaname.startsWith('User_');
 
   if (isLoadingProfile) {
     return (
@@ -139,7 +174,7 @@ const Profile = () => {
     );
   }
 
-  if (!profile) {
+  if (!displayProfile) {
     return (
       <div className="min-h-screen pt-16 bg-gradient-to-b from-csfloat-darker to-black">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -175,13 +210,13 @@ const Profile = () => {
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-4">
               <img
-                src={profile.avatarmedium}
-                alt={`${profile.personaname}'s avatar`}
+                src={displayProfile.avatarmedium}
+                alt={`${displayProfile.personaname}'s avatar`}
                 className="w-20 h-20 rounded-full border-2 border-csfloat-blue/30"
               />
               <div>
-                <h1 className="text-2xl font-bold text-white">{isMockProfile ? 'Default' : profile.personaname}</h1>
-                <p className="text-csfloat-light/70">Steam ID: {profile.steamid}</p>
+                <h1 className="text-2xl font-bold text-white">{isMockProfile ? 'Default' : displayProfile.personaname}</h1>
+                <p className="text-csfloat-light/70">Steam ID: {displayProfile.steamid}</p>
               </div>
             </div>
             <button

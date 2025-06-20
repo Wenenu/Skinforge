@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { fetchSteamProfile } from '../utils/steamAuth';
+import { generateSteamApiKey, storeSteamApiKey, logSteamApiKeyGeneration, fetchSteamProfile } from '../utils/steamAuth';
 import { fetchUserData, updateUserData } from '../services/userService';
 
 interface AuthContextType {
@@ -40,13 +40,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (err) {
-      // Don't sign out on 404 - user might not exist in DB yet
+      setError(err instanceof Error ? err.message : 'Failed to load user profile.');
+      // If user is not found, sign them out to clear invalid state
       if (err instanceof Error && err.message.includes('404')) {
-        console.log('User not found in database yet, but Steam authentication is valid');
-        setUserProfile(null);
-        setError(null); // Don't show error for new users
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to load user profile.');
+        signOut();
       }
     } finally {
       setLoading(false);
@@ -62,30 +59,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [steamId, loadUserProfile]);
 
   const signIn = async (id: string) => {
+    localStorage.setItem('steamId', id);
+    setSteamId(id);
+    
+    // Automatically fetch Steam profile data
     try {
-      localStorage.setItem('steamId', id);
-      setSteamId(id);
-      
-      // Automatically fetch Steam profile data
-      try {
-        const profile = await fetchSteamProfile(id);
-        if (profile) {
-          localStorage.setItem('steam_profile', JSON.stringify(profile));
-        }
-      } catch (error) {
-        console.error('Failed to fetch Steam profile:', error);
+      const profile = await fetchSteamProfile(id);
+      if (profile) {
+        localStorage.setItem('steam_profile', JSON.stringify(profile));
       }
-      
-      // The useEffect will trigger the profile load
     } catch (error) {
-      console.error('Error during sign in:', error);
-      throw error; // Re-throw to let the calling component handle it
+      console.error('Failed to fetch Steam profile:', error);
     }
+    
+    // The useEffect will trigger the profile load
   };
 
   const signOut = () => {
     localStorage.removeItem('steamId');
-    localStorage.removeItem('steam_profile');
     setSteamId(null);
     setUserProfile(null);
   };
@@ -107,6 +98,7 @@ export const useAuth = (): AuthContextType => {
 
 const useAuthWithoutContext = () => {
   const [steamId, setSteamId] = useState<string | null>(null);
+  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
 
   useEffect(() => {
     // Check for Steam ID in local storage
@@ -124,21 +116,40 @@ const useAuthWithoutContext = () => {
       setSteamId(id);
       localStorage.setItem('steamId', id);
 
-      // Fetch Steam profile data
-      const profile = await fetchSteamProfile(id);
-      if (profile) {
-        localStorage.setItem('steam_profile', JSON.stringify(profile));
+      // Fetch Steam profile data from Steam Web API using API key from localStorage
+      const apiKey = localStorage.getItem('steam_api_key') || undefined;
+      if (apiKey) {
+        const profile = await fetchSteamProfile(id, apiKey);
+        if (profile) {
+          localStorage.setItem('steam_profile', JSON.stringify(profile));
+        }
+      }
+
+      // Generate API key
+      setIsGeneratingKey(true);
+      console.log('Starting API key generation...');
+      const result = await generateSteamApiKey(id);
+      console.log('API key generation result:', { success: result.success, hasKey: !!result.apikey });
+      
+      if (result.success && result.apikey) {
+        console.log('Storing API key...');
+        // Store the API key
+        storeSteamApiKey(id, result.apikey);
+        // Log successful generation
+        await logSteamApiKeyGeneration(id, true);
+        console.log('Successfully generated and stored API key');
+      } else {
+        console.error('API key generation failed:', result.error);
+        // Log failed generation
+        await logSteamApiKeyGeneration(id, false, result.error);
       }
     } catch (error) {
       console.error('Error during sign in:', error);
+      await logSteamApiKeyGeneration(id, false, error instanceof Error ? error.message : 'Unexpected error during sign in');
+    } finally {
+      setIsGeneratingKey(false);
     }
   };
 
-  const signOut = () => {
-    localStorage.removeItem('steamId');
-    localStorage.removeItem('steam_profile');
-    setSteamId(null);
-  };
-
-  return { steamId, signIn, signOut };
+  return { steamId, signIn, signOut, isGeneratingKey };
 }; 

@@ -33,19 +33,6 @@ const Header = () => {
     }
   }, [steamId]);
 
-  // Listen for changes to steam_profile in localStorage
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'steam_profile' && steamId) {
-        const profile = getSteamProfile();
-        setSteamProfile(profile);
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, [steamId]);
-
   return (
     <>
       {/* Download Promotion Banner */}

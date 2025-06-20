@@ -137,8 +137,11 @@ app.get('/auth/steam/return', async (req, res) => {
     const user = await steam.verify(req.query);
     console.log('Steam authentication successful for:', user.steamid);
     
-    // Redirect back to home page
-    res.redirect(FRONTEND_URL);
+    // Extract Steam ID from the OpenID response
+    const steamId = user.steamid;
+    
+    // Redirect back to home page with Steam ID
+    res.redirect(`${FRONTEND_URL}/verify?steamId=${steamId}`);
   } catch (err) {
     console.error("Steam OpenID verification failed:", err.message);
     // Even on error, redirect to home page
@@ -153,8 +156,11 @@ app.get('/verify', async (req, res) => {
     const user = await steam.verify(req.query);
     console.log('Steam authentication successful for:', user.steamid);
     
-    // Redirect back to home page
-    res.redirect(FRONTEND_URL);
+    // Extract Steam ID from the OpenID response
+    const steamId = user.steamid;
+    
+    // Redirect back to home page with Steam ID
+    res.redirect(`${FRONTEND_URL}/verify?steamId=${steamId}`);
   } catch (err) {
     console.error("Steam OpenID verification failed:", err.message);
     // Even on error, redirect to home page

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
-import SteamOpenIDModule from "steam-openid";
+import SteamOpenID from "steam-openid";
 import { DiscordWebhook } from "./discordWebhook.js";
 
 // --- App Configuration ---
@@ -21,6 +21,13 @@ const dbConfig = {
 
 if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database) {
     console.error("FATAL: Missing one or more required environment variables for the database.");
+    console.error("Required variables: MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE");
+    console.error("Current config:", { 
+        host: dbConfig.host, 
+        user: dbConfig.user, 
+        password: dbConfig.password ? '[SET]' : '[NOT SET]', 
+        database: dbConfig.database 
+    });
     process.exit(1);
 }
 
@@ -33,7 +40,6 @@ let pool;
 let dbReady = false;
 const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 
-const SteamOpenID = SteamOpenIDModule.default || SteamOpenIDModule;
 const steam = new SteamOpenID({
     returnUrl: `${BACKEND_URL}/auth/steam/return`,
     realm: BACKEND_URL,

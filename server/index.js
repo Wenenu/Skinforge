@@ -1,82 +1,73 @@
+import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
-import SteamOpenIDModule from "steam-openid";
-import 'dotenv/config';
+import SteamOpenID from "steam-openid";
 import { DiscordWebhook } from "./discordWebhook.js";
 
+// --- App Configuration ---
 const app = express();
 const PORT = process.env.PORT || 3002;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://150.136.130.59";
 const BACKEND_URL = process.env.BACKEND_URL || `http://150.136.130.59:${PORT}`;
 
-// Middleware
+// --- Middleware ---
 app.use(express.json());
 app.use(cors({
   origin: FRONTEND_URL,
   credentials: true,
 }));
 
-// Services
-const pool = mysql.createPool({
-  host: process.env.MYSQL_HOST,
-  user: process.env.MYSQL_USER,
-  password: process.env.MYSQL_PASSWORD,
-  database: process.env.MYSQL_DATABASE,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+// --- Services ---
+let pool;
+let dbReady = false;
 
 const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 
-// ESM/CJS compatibility fix for steam-openid
-const SteamOpenID = SteamOpenIDModule.default || SteamOpenIDModule;
 const steam = new SteamOpenID({
   returnUrl: `${BACKEND_URL}/auth/steam/return`,
   realm: BACKEND_URL,
 });
 
-// Database Initialization
+// --- Database Initialization ---
 async function initDatabase() {
   try {
-    const conn = await pool.getConnection();
-    console.log('Successfully connected to MySQL database.');
-    
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        steam_id VARCHAR(255) UNIQUE NOT NULL,
-        api_key VARCHAR(255),
-        trade_url VARCHAR(512),
-        app_installed BOOLEAN DEFAULT false,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      )
-    `);
+    pool = mysql.createPool({
+      host: process.env.MYSQL_HOST,
+      user: process.env.MYSQL_USER,
+      password: process.env.MYSQL_PASSWORD,
+      database: process.env.MYSQL_DATABASE,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0
+    });
 
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS openid_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        claimed_id VARCHAR(255),
-        op_endpoint VARCHAR(255),
-        mode VARCHAR(50),
-        ns VARCHAR(255),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    // Test the connection
+    const connection = await pool.getConnection();
+    console.log('Successfully connected to MySQL database.');
+    connection.release();
     
-    console.log('Database tables are ready.');
-    conn.release();
+    // Schema setup can go here if needed...
+    dbReady = true;
   } catch (err) {
-    console.error('Failed to initialize database:', err);
-    process.exit(1);
+    console.error('FATAL: Failed to initialize database:', err);
+    dbReady = false;
+    // Rethrow to prevent server from starting
+    throw err;
   }
 }
 
 // --- Routes ---
 
-// 1. Authentication Routes
+// 1. Health Check
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'CSFloat Clone API is running',
+    database: dbReady ? 'Connected' : 'Disconnected' 
+  });
+});
+
+// 2. Authentication Routes
 app.get('/auth/steam', async (req, res) => {
   const redirectUrl = await steam.getRedirectUrl();
   res.redirect(redirectUrl);
@@ -84,33 +75,25 @@ app.get('/auth/steam', async (req, res) => {
 
 app.get('/auth/steam/return', async (req, res) => {
   try {
+    if (!dbReady) throw new Error("Database not ready.");
     const user = await steam.verify(req.query);
     const steamId = user.steamid;
 
-    const conn = await pool.getConnection();
-    try {
-      await conn.query(
-        "INSERT INTO openid_logs (claimed_id, op_endpoint, mode, ns) VALUES (?, ?, ?, ?)",
-        [req.query["openid.claimed_id"], req.query["openid.op_endpoint"], req.query["openid.mode"], req.query["openid.ns"]]
-      );
-
-      await conn.query(
-        `INSERT INTO users (steam_id) VALUES (?) ON DUPLICATE KEY UPDATE last_login = CURRENT_TIMESTAMP`,
-        [steamId]
-      );
-    } finally {
-      conn.release();
-    }
+    await pool.query(
+      `INSERT INTO users (steam_id) VALUES (?) ON DUPLICATE KEY UPDATE last_login = CURRENT_TIMESTAMP`,
+      [steamId]
+    );
     
     res.redirect(`${FRONTEND_URL}/verify?steamId=${steamId}`);
   } catch (err) {
-    console.error("Steam OpenID verification failed:", err);
-    res.redirect(`${FRONTEND_URL}/login-failed`);
+    console.error("Steam OpenID verification failed:", err.message);
+    res.redirect(`${FRONTEND_URL}/login-failed?error=${encodeURIComponent(err.message)}`);
   }
 });
 
-// 2. User API Routes
+// 3. User API Routes (and all others that need the DB)
 app.get("/api/user/:steamId", async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
   const { steamId } = req.params;
   try {
     const [rows] = await pool.query("SELECT steam_id, api_key, trade_url, app_installed FROM users WHERE steam_id = ?", [steamId]);
@@ -125,6 +108,7 @@ app.get("/api/user/:steamId", async (req, res) => {
 });
 
 app.post("/api/user/:steamId", async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
   const { steamId } = req.params;
   const { apiKey, tradeUrl, appInstalled } = req.body;
   
@@ -156,8 +140,7 @@ app.post("/api/user/:steamId", async (req, res) => {
   }
 });
 
-
-// 3. Admin Routes
+// 4. Admin Routes
 app.get("/api/admin/users", async (req, res) => {
   // TODO: Add authentication/authorization for this endpoint
   try {
@@ -169,15 +152,25 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 
-// Root/Health Check
-app.get('/', (req, res) => {
-  res.json({ message: 'CSFloat Clone API is running' });
-});
+// --- Start Server ---
+async function startServer() {
+  try {
+    await initDatabase();
+    app.listen(PORT, () => {
+      console.log(`Server running at http://localhost:${PORT}`);
+      console.log(`Database status: ${dbReady ? 'Connected' : 'Failed'}`);
+    });
+  } catch (error) {
+    console.error('Could not start server due to database initialization failure.');
+    process.exit(1);
+  }
+}
 
-// Start Server
-app.listen(PORT, async () => {
-  await initDatabase();
-  console.log(`Server running at http://localhost:${PORT}`);
-  console.log(`Frontend expected at: ${FRONTEND_URL}`);
-  console.log(`Backend listening at: ${BACKEND_URL}`);
+startServer();
+
+// --- Graceful Shutdown ---
+process.on('SIGINT', async () => {
+  console.log('SIGINT signal received: closing HTTP server and DB pool');
+  if (pool) await pool.end();
+  process.exit(0);
 }); 

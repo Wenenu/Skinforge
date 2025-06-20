@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
-import SteamOpenID from "steam-openid";
+import SteamOpenIDModule from "steam-openid";
 import { DiscordWebhook } from "./discordWebhook.js";
 
 // --- App Configuration ---
@@ -11,50 +11,47 @@ const PORT = process.env.PORT || 3002;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://150.136.130.59";
 const BACKEND_URL = process.env.BACKEND_URL || `http://150.136.130.59:${PORT}`;
 
+// --- Environment Variable Check ---
+const dbConfig = {
+    host: process.env.MYSQL_HOST,
+    user: process.env.MYSQL_USER,
+    password: process.env.MYSQL_PASSWORD,
+    database: process.env.MYSQL_DATABASE,
+};
+
+if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database) {
+    console.error("FATAL: Missing one or more required environment variables for the database.");
+    process.exit(1);
+}
+
 // --- Middleware ---
 app.use(express.json());
-app.use(cors({
-  origin: FRONTEND_URL,
-  credentials: true,
-}));
+app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 
 // --- Services ---
 let pool;
 let dbReady = false;
-
 const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 
+const SteamOpenID = SteamOpenIDModule.default || SteamOpenIDModule;
 const steam = new SteamOpenID({
-  returnUrl: `${BACKEND_URL}/auth/steam/return`,
-  realm: BACKEND_URL,
+    returnUrl: `${BACKEND_URL}/auth/steam/return`,
+    realm: BACKEND_URL,
 });
 
 // --- Database Initialization ---
 async function initDatabase() {
-  try {
-    pool = mysql.createPool({
-      host: process.env.MYSQL_HOST,
-      user: process.env.MYSQL_USER,
-      password: process.env.MYSQL_PASSWORD,
-      database: process.env.MYSQL_DATABASE,
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
-
-    // Test the connection
-    const connection = await pool.getConnection();
-    console.log('Successfully connected to MySQL database.');
-    connection.release();
-    
-    // Schema setup can go here if needed...
-    dbReady = true;
-  } catch (err) {
-    console.error('FATAL: Failed to initialize database:', err);
-    dbReady = false;
-    // Rethrow to prevent server from starting
-    throw err;
-  }
+    try {
+        pool = mysql.createPool({ ...dbConfig, waitForConnections: true, connectionLimit: 10, queueLimit: 0 });
+        const connection = await pool.getConnection();
+        console.log('Successfully connected to MySQL database.');
+        connection.release();
+        dbReady = true;
+    } catch (err) {
+        console.error('FATAL: Failed to initialize database pool:', err.message);
+        dbReady = false;
+        throw err;
+    }
 }
 
 // --- Routes ---
@@ -161,7 +158,7 @@ async function startServer() {
       console.log(`Database status: ${dbReady ? 'Connected' : 'Failed'}`);
     });
   } catch (error) {
-    console.error('Could not start server due to database initialization failure.');
+    console.error('Could not start server. Please check database credentials and connectivity.');
     process.exit(1);
   }
 }

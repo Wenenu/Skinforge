@@ -1,0 +1,34 @@
+# Dependencies
+/node_modules
+/server/node_modules
+
+# Build output
+/dist
+/build
+
+# Environment files
+.env
+.env.*
+/server/.env
+/server/.env.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.user
+*.user.*
+*.sln.docstates
+
+# Biome files
+biome.json
+
+# Bun lockfile
+bun.lockb

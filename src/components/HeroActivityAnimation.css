@@ -1,0 +1,22 @@
+@keyframes scrollUpFade {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 0;
+    transform: translateY(-32px);
+  }
+  60% {
+    opacity: 0;
+    transform: translateY(32px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.activity-animate {
+  animation: scrollUpFade 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+} 

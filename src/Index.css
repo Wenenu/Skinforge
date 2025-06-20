@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[theme('colors.csfloat.dark')] text-[theme('colors.csfloat.light')] font-sans;
+    overflow-x: hidden;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .gradient-text {
+    @apply bg-gradient-to-r from-[theme('colors.csfloat.blue')] to-[theme('colors.csfloat.teal')] bg-clip-text text-transparent;
+  }
+
+  .glow-text {
+    text-shadow:
+      0 0 8px rgba(0, 212, 255, 0.5),
+      0 0 16px rgba(0, 212, 255, 0.3),
+      0 0 32px rgba(0, 212, 255, 0.15);
+  }
+
+  .hero-card {
+    @apply bg-gradient-to-br from-csfloat-darker/80 to-csfloat-gray/30 backdrop-blur-sm border border-csfloat-gray/20 rounded-xl p-6 shadow-lg;
+  }
+
+  .item-card {
+    @apply bg-csfloat-darker border border-csfloat-gray/30 rounded-lg overflow-hidden hover:border-csfloat-blue/50 transition-all duration-300 hover:shadow-lg hover:shadow-csfloat-blue/10;
+  }
+
+  .nav-link {
+    @apply text-csfloat-light/80 hover:text-white transition-colors duration-200 font-medium;
+  }
+
+  .btn-primary {
+    @apply bg-csfloat-blue hover:bg-csfloat-blue/90 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:shadow-lg;
+  }
+
+  .btn-secondary {
+    @apply bg-csfloat-teal hover:bg-csfloat-teal/90 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 hover:shadow-lg;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-csfloat-darker;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-csfloat-gray rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-csfloat-blue;
+}

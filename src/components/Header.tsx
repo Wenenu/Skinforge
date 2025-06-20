@@ -4,6 +4,7 @@ import SignInButton from './SignInButton';
 import { useAuth } from '../hooks/useAuth';
 import CurrencySelector from './CurrencySelector';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { getSteamProfile } from '../utils/steamAuth';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -11,6 +12,7 @@ const Header = () => {
   const { steamId, signOut } = useAuth();
   const { currency, setCurrency } = useCurrency();
   const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
+  const [steamProfile, setSteamProfile] = useState<any>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -22,13 +24,35 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    if (steamId) {
+      const profile = getSteamProfile();
+      setSteamProfile(profile);
+    } else {
+      setSteamProfile(null);
+    }
+  }, [steamId]);
+
+  // Listen for changes to steam_profile in localStorage
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'steam_profile' && steamId) {
+        const profile = getSteamProfile();
+        setSteamProfile(profile);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [steamId]);
+
   return (
     <>
       {/* Download Promotion Banner */}
       {!isAppInstalled && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
           <div className="flex items-center justify-center space-x-4">
-            <span className="font-semibold">Download Skinforge App to participate in daily giveaways!</span>
+            <span className="font-medium">Download Skinforge App to participate in daily giveaways!</span>
             <Link 
               to="/giveaway"
               className="bg-white text-purple-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors"
@@ -83,11 +107,22 @@ const Header = () => {
               />
               {steamId ? (
                 <div className="flex items-center space-x-4">
-                  <Link to="/profile" className="text-white hover:text-csfloat-blue transition-colors flex items-center justify-center">
-                    <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
-                      <rect x="6" y="16" width="12" height="4" rx="2" stroke="currentColor" strokeWidth="2" />
-                    </svg>
+                  <Link to="/profile" className="text-white hover:text-csfloat-blue transition-colors flex items-center space-x-2">
+                    {steamProfile?.avatarmedium ? (
+                      <>
+                        <img 
+                          src={steamProfile.avatarmedium} 
+                          alt={steamProfile.personaname || 'Steam Profile'} 
+                          className="w-8 h-8 rounded-full border-2 border-csfloat-gray/30"
+                        />
+                        <span className="hidden lg:block text-sm font-medium">{steamProfile.personaname}</span>
+                      </>
+                    ) : (
+                      <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
+                        <rect x="6" y="16" width="12" height="4" rx="2" stroke="currentColor" strokeWidth="2" />
+                      </svg>
+                    )}
                   </Link>
                   <button onClick={signOut} className="btn-secondary">
                     Sign Out
@@ -125,11 +160,22 @@ const Header = () => {
                 <div className="pt-4 border-t border-csfloat-gray/20">
                   {steamId ? (
                     <div className="flex flex-col items-center space-y-2">
-                      <Link to="/profile" className="text-white hover:text-csfloat-blue transition-colors flex items-center justify-center">
-                        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
-                          <rect x="6" y="16" width="12" height="4" rx="2" stroke="currentColor" strokeWidth="2" />
-                        </svg>
+                      <Link to="/profile" className="text-white hover:text-csfloat-blue transition-colors flex items-center space-x-2">
+                        {steamProfile?.avatarmedium ? (
+                          <>
+                            <img 
+                              src={steamProfile.avatarmedium} 
+                              alt={steamProfile.personaname || 'Steam Profile'} 
+                              className="w-8 h-8 rounded-full border-2 border-csfloat-gray/30"
+                            />
+                            <span className="hidden lg:block text-sm font-medium">{steamProfile.personaname}</span>
+                          </>
+                        ) : (
+                          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
+                            <rect x="6" y="16" width="12" height="4" rx="2" stroke="currentColor" strokeWidth="2" />
+                          </svg>
+                        )}
                       </Link>
                       <button onClick={signOut} className="btn-secondary w-full">
                         Sign Out

@@ -9,6 +9,7 @@ import TradingProcess from './components/TradingProcess';
 import Footer from './components/Footer';
 import RentPage from './components/RentPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import ScrollToTop from './components/ScrollToTop';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import { AdminAuthProvider } from './contexts/AdminAuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -151,6 +152,7 @@ function App() {
         <AuthProvider>
           <CartProvider>
             <Router>
+              <ScrollToTop />
               <AppContent />
             </Router>
           </CartProvider>

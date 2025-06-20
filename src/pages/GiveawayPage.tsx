@@ -53,31 +53,7 @@ const GiveawayPage: React.FC = () => {
 
   return (
     <div className={`min-h-screen bg-gradient-to-b from-csfloat-darker to-black pt-16`}>
-      {/* Download Promotion Banner */}
-      {!isAppInstalled && (
-        <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div className="flex flex-col md:flex-row items-center justify-between">
-              <div className="text-center md:text-left mb-4 md:mb-0">
-                <h3 className="text-xl font-bold text-white mb-2">Download the App to Enter Giveaways</h3>
-                <p className="text-csfloat-light/80">
-                  The Skinforge app is required to participate in our daily giveaways!
-                </p>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Link 
-                  to="/download"
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-center"
-                >
-                  Download App
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 ${!isAppInstalled ? 'pt-10' : ''}`}>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
           <h1 className="text-5xl md:text-6xl font-bold text-white mb-6">
@@ -85,16 +61,18 @@ const GiveawayPage: React.FC = () => {
               Daily Giveaways
             </span>
           </h1>
-          <p className="text-xl text-csfloat-light/80 mb-8 max-w-3xl mx-auto">
+          <p className="text-xl text-csfloat-light/80 mb-12 max-w-3xl mx-auto">
             Win premium CS2 skins worth more than $150 every day! Download the Skinforge app and participate in our exclusive giveaways.
           </p>
           {!isAppInstalled && (
-            <Link 
-              to="/download"
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 inline-block"
-            >
-              Download App to Enter
-            </Link>
+            <div className="mt-8">
+              <Link 
+                to="/download"
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-200 inline-block"
+              >
+                Download App to Enter
+              </Link>
+            </div>
           )}
         </div>
 

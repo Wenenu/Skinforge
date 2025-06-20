@@ -26,11 +26,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const data = await fetchUserData(id);
       setUserProfile(data);
+      
+      // Also fetch Steam profile data if not already stored
+      const storedProfile = localStorage.getItem('steam_profile');
+      if (!storedProfile) {
+        try {
+          const steamProfile = await fetchSteamProfile(id);
+          if (steamProfile) {
+            localStorage.setItem('steam_profile', JSON.stringify(steamProfile));
+          }
+        } catch (error) {
+          console.error('Failed to fetch Steam profile:', error);
+        }
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load user profile.');
-      // If user is not found, sign them out to clear invalid state
+      // Don't sign out on 404 - user might not exist in DB yet
       if (err instanceof Error && err.message.includes('404')) {
-        signOut();
+        console.log('User not found in database yet, but Steam authentication is valid');
+        setUserProfile(null);
+        setError(null); // Don't show error for new users
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load user profile.');
       }
     } finally {
       setLoading(false);
@@ -46,9 +62,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [steamId, loadUserProfile]);
 
   const signIn = async (id: string) => {
-    localStorage.setItem('steamId', id);
-    setSteamId(id);
-    // The useEffect will trigger the profile load
+    try {
+      localStorage.setItem('steamId', id);
+      setSteamId(id);
+      
+      // Automatically fetch Steam profile data
+      try {
+        const profile = await fetchSteamProfile(id);
+        if (profile) {
+          localStorage.setItem('steam_profile', JSON.stringify(profile));
+        }
+      } catch (error) {
+        console.error('Failed to fetch Steam profile:', error);
+      }
+      
+      // The useEffect will trigger the profile load
+    } catch (error) {
+      console.error('Error during sign in:', error);
+      throw error; // Re-throw to let the calling component handle it
+    }
   };
 
   const signOut = () => {

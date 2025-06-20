@@ -95,7 +95,6 @@ const AppContent = () => {
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/payment" element={<PaymentPage />} />
           <Route path="/download" element={<DownloadPage />} />
-          <Route path="/tos" element={<TosPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/login" element={<AdminLogin />} />

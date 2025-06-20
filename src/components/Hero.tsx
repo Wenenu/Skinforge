@@ -252,9 +252,6 @@ const Hero = () => {
             <Link to="/rent" className="btn-primary text-lg px-8 py-4">
               Rent Skins
             </Link>
-            <button className="btn-secondary text-lg px-8 py-4">
-              Browse Market
-            </button>
             <button 
               onClick={() => {
                 // Trigger download prompt for giveaway promotion
@@ -267,10 +264,13 @@ const Hero = () => {
                 });
                 window.dispatchEvent(event);
               }}
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg px-8 py-4 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-xl px-10 py-5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
               style={{ animation: 'pulse 3s infinite' }}
             >
               Win Free Skins!
+            </button>
+            <button className="btn-secondary text-lg px-8 py-4">
+              Browse Market
             </button>
           </div>
 

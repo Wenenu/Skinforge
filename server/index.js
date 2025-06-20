@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from "express";
 import cors from "cors";
 import mysql from "mysql2/promise";
-import SteamOpenID from "steam-openid";
 import { DiscordWebhook } from "./discordWebhook.js";
 
 // --- App Configuration ---
@@ -40,10 +39,28 @@ let pool;
 let dbReady = false;
 const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 
-const steam = new SteamOpenID({
-    returnUrl: `${BACKEND_URL}/auth/steam/return`,
-    realm: BACKEND_URL,
-});
+// Initialize SteamOpenID with proper import handling
+let steam;
+try {
+    const SteamOpenIDModule = await import("steam-openid");
+    const SteamOpenID = SteamOpenIDModule.default || SteamOpenIDModule;
+    steam = new SteamOpenID({
+        returnUrl: `${BACKEND_URL}/auth/steam/return`,
+        realm: BACKEND_URL,
+    });
+    console.log('SteamOpenID initialized successfully');
+} catch (error) {
+    console.error('Failed to initialize SteamOpenID:', error.message);
+    // Create a dummy steam object to prevent crashes
+    steam = {
+        getRedirectUrl: async () => {
+            throw new Error('SteamOpenID not available');
+        },
+        verify: async () => {
+            throw new Error('SteamOpenID not available');
+        }
+    };
+}
 
 // --- Database Initialization ---
 async function initDatabase() {

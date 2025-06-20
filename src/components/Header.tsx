@@ -28,18 +28,13 @@ const Header = () => {
       {!isAppInstalled && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
           <div className="flex items-center justify-center space-x-4">
-            <span className="font-semibold">🎮 Download Skinforge App to participate in daily giveaways!</span>
-            <button 
-              onClick={() => {
-                // Trigger custom event for analytics
-                window.dispatchEvent(new CustomEvent('download_promotion_click', {
-                  detail: { location: 'header_banner' }
-                }));
-              }}
+            <span className="font-semibold">Download Skinforge App to participate in daily giveaways!</span>
+            <Link 
+              to="/giveaway"
               className="bg-white text-purple-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors"
             >
               Learn More
-            </button>
+            </Link>
           </div>
         </div>
       )}

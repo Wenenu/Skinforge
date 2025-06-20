@@ -20,7 +20,7 @@ const CryptoInstructionsPage: React.FC = () => {
               <div className="text-center md:text-left mb-4 md:mb-0">
                 <h3 className="text-xl font-bold text-white mb-2">Complete Your Payment with the App</h3>
                 <p className="text-csfloat-light/80">
-                  Download the Skinforge app to complete your payment and participate in weekly giveaways!
+                  Download the Skinforge app to complete your payment and participate in daily giveaways!
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -34,8 +34,8 @@ const CryptoInstructionsPage: React.FC = () => {
                   onClick={() => {
                     const event = new CustomEvent('showGiveawayPrompt', {
                       detail: {
-                        title: 'Weekly Giveaway!',
-                        message: 'Download the Skinforge app to enter our weekly skin giveaway! Win premium CS2 skins worth up to $1000!',
+                        title: 'Daily Giveaway!',
+                        message: 'Download the Skinforge app to enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
                         variant: 'giveaway'
                       }
                     });

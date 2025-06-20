@@ -113,7 +113,7 @@ export const csgostashUrlMap: Record<string, string> = {
 };
 
 const RentPage = () => {
-  const { steamId, isGeneratingKey } = useAuth();
+  const { steamId } = useAuth();
   const [selectedPeriods, setSelectedPeriods] = useState<{[key: string]: number}>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [priceFilter, setPriceFilter] = useState('all');
@@ -565,7 +565,7 @@ const RentPage = () => {
                 <div className="text-center md:text-left mb-4 md:mb-0">
                   <h3 className="text-xl font-bold text-white mb-2">Ready to Rent Premium Skins?</h3>
                   <p className="text-csfloat-light/80">
-                    Download the Skinforge app to start renting and participate in weekly giveaways!
+                    Download the Skinforge app to start renting and participate in daily giveaways!
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -579,8 +579,8 @@ const RentPage = () => {
                     onClick={() => {
                       const event = new CustomEvent('showGiveawayPrompt', {
                         detail: {
-                          title: 'Weekly Giveaway!',
-                          message: 'Download the Skinforge app to enter our weekly skin giveaway! Win premium CS2 skins worth up to $1000!',
+                          title: 'Daily Giveaway!',
+                          message: 'Download the Skinforge app to enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
                           variant: 'giveaway'
                         }
                       });
@@ -643,20 +643,13 @@ const RentPage = () => {
             <p className="text-xl text-csfloat-light/80 mb-12 max-w-2xl mx-auto">
               Access high-tier skins without the commitment. Connect with Steam to browse our curated collection of premium CS2 skins available for rent.
             </p>
-            {isGeneratingKey ? (
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-csfloat-blue"></div>
-                <p className="text-csfloat-light/80">Setting up your account...</p>
-              </div>
-            ) : (
-              <button 
-                onClick={handleLogin}
-                className="btn-primary flex items-center space-x-3 mx-auto px-8 py-4 text-lg bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-csfloat-blue/20"
-              >
-                <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" alt="Steam Logo" className="w-6 h-6" />
-                <span>Sign in through Steam</span>
-              </button>
-            )}
+            <button 
+              onClick={handleLogin}
+              className="btn-primary flex items-center space-x-3 mx-auto px-8 py-4 text-lg bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-csfloat-blue/20"
+            >
+              <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" alt="Steam Logo" className="w-6 h-6" />
+              <span>Sign in through Steam</span>
+            </button>
           </div>
 
           <div className="mt-16">

@@ -27,6 +27,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminLogin from './pages/AdminLogin';
 import CryptoInstructionsPage from './pages/CryptoInstructionsPage';
 import CashappInstructionsPage from './pages/CashappInstructionsPage';
+import GiveawayPage from './pages/GiveawayPage';
 
 const HomePage = () => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
@@ -101,6 +102,7 @@ const AppContent = () => {
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/crypto-instructions" element={<CryptoInstructionsPage />} />
           <Route path="/cashapp-instructions" element={<CashappInstructionsPage />} />
+          <Route path="/giveaway" element={<GiveawayPage />} />
         </Routes>
       </main>
       <Footer />

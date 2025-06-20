@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 const Footer = () => {
   const footerLinks = {
     Products: [
-      { name: 'Market', href: '#' }
+      { name: 'Market', href: '#' },
+      { name: 'Giveaways', href: '/giveaway' }
     ],
     Resources: [
       { name: 'FAQ', href: '#' },
@@ -28,7 +29,7 @@ const Footer = () => {
               <div className="text-center md:text-left mb-4 md:mb-0">
                 <h3 className="text-xl font-bold text-white mb-2">Get the Full Skinforge Experience</h3>
                 <p className="text-csfloat-light/80">
-                  Download our app to participate in weekly giveaways and unlock exclusive features!
+                  Download our app to participate in daily giveaways and unlock exclusive features!
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-3">
@@ -42,8 +43,8 @@ const Footer = () => {
                   onClick={() => {
                     const event = new CustomEvent('showGiveawayPrompt', {
                       detail: {
-                        title: 'Weekly Giveaway!',
-                        message: 'Download the Skinforge app to enter our weekly skin giveaway! Win premium CS2 skins worth up to $1000!',
+                        title: 'Daily Giveaway!',
+                        message: 'Download the Skinforge app to enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
                         variant: 'giveaway'
                       }
                     });
@@ -76,12 +77,21 @@ const Footer = () => {
               <ul className="space-y-2">
                 {links.map((link) => (
                   <li key={link.name}>
-                    <a
-                      href={link.href}
-                      className="text-csfloat-light/70 hover:text-white transition-colors duration-200 text-sm"
-                    >
-                      {link.name}
-                    </a>
+                    {link.href.startsWith('/') ? (
+                      <Link
+                        to={link.href}
+                        className="text-csfloat-light/70 hover:text-white transition-colors duration-200 text-sm"
+                      >
+                        {link.name}
+                      </Link>
+                    ) : (
+                      <a
+                        href={link.href}
+                        className="text-csfloat-light/70 hover:text-white transition-colors duration-200 text-sm"
+                      >
+                        {link.name}
+                      </a>
+                    )}
                   </li>
                 ))}
               </ul>

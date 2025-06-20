@@ -137,7 +137,7 @@ const Hero = () => {
   }, []);
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+    <section className="relative min-h-screen flex items-center justify-center pt-32 overflow-hidden">
       {/* Background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-csfloat-dark via-csfloat-darker to-csfloat-dark"></div>
 
@@ -258,7 +258,7 @@ const Hero = () => {
                 const event = new CustomEvent('showGiveawayPrompt', {
                   detail: {
                     title: 'Exclusive Giveaway!',
-                    message: 'Download the Skinforge app now and enter our weekly skin giveaway! Win premium CS2 skins worth up to $1000!',
+                    message: 'Download the Skinforge app now and enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
                     variant: 'giveaway'
                   }
                 });

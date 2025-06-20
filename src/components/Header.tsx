@@ -36,7 +36,7 @@ const Header = () => {
       {showDownloadBanner && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
           <div className="flex items-center justify-center space-x-4">
-            <span className="text-sm font-medium">🎁 Join our weekly giveaways! Download the Skinforge app to participate</span>
+            <span className="text-sm font-medium">Join our daily giveaways! Download the Skinforge app to participate</span>
             <Link 
               to="/download" 
               className="bg-white text-purple-600 px-4 py-1 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors"

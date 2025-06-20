@@ -265,7 +265,10 @@ const Hero = () => {
                 window.dispatchEvent(event);
               }}
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-xl px-10 py-5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
-              style={{ animation: 'pulse 3s infinite' }}
+              style={{ 
+                animation: 'gentlePulse 3s ease-in-out infinite',
+                boxShadow: '0 0 20px rgba(168, 85, 247, 0.4)'
+              }}
             >
               Win Free Skins!
             </button>

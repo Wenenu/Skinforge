@@ -257,6 +257,68 @@ const Hero = () => {
             </button>
           </div>
 
+          {/* Prominent Download Section */}
+          <div className="mt-12 mb-16 max-w-4xl mx-auto">
+            <div className="bg-gradient-to-r from-csfloat-blue/20 to-purple-600/20 backdrop-blur-sm rounded-2xl p-8 border-2 border-csfloat-blue/30 relative overflow-hidden">
+              {/* Background glow effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-csfloat-blue/10 to-purple-600/10 animate-pulse"></div>
+              
+              <div className="relative z-10 text-center">
+                <div className="mb-6">
+                  <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                    Download the <span className="text-csfloat-blue">Skinforge Client</span>
+                  </h2>
+                  <p className="text-xl text-csfloat-light/80 mb-6">
+                    Get instant access to premium CS2 skins and exclusive features
+                  </p>
+                  
+                  {/* Incentive Badge */}
+                  <div className="inline-flex items-center bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-full mb-6 animate-bounce">
+                    <svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-bold text-lg">25% Chance to Win a Skin Worth $10+!</span>
+                  </div>
+                </div>
+
+                {/* Huge Download Button */}
+                <Link 
+                  to="/download"
+                  className="inline-block bg-gradient-to-r from-csfloat-blue to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white text-2xl md:text-3xl font-bold px-12 py-6 rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300 border-2 border-csfloat-blue/50"
+                >
+                  <div className="flex items-center justify-center space-x-4">
+                    <svg className="w-8 h-8 md:w-10 md:h-10" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                    <span>DOWNLOAD SKINFORGE CLIENT</span>
+                  </div>
+                </Link>
+
+                {/* Features list */}
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-csfloat-light/70">
+                  <div className="flex items-center justify-center">
+                    <svg className="w-4 h-4 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Instant Skin Access
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <svg className="w-4 h-4 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Win Free Skins
+                  </div>
+                  <div className="flex items-center justify-center">
+                    <svg className="w-4 h-4 mr-2 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Premium Features
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Progress Bars Section */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16 max-w-5xl mx-auto">
             {/* Account Setup Progress */}

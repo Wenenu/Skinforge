@@ -51,7 +51,7 @@ const CryptoInstructionsPage: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className={`max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 ${localStorage.getItem('skinforge_app_installed') !== 'true' ? 'pt-10' : ''}`}>
         <div className="bg-csfloat-dark/50 backdrop-blur-sm border border-csfloat-gray/20 rounded-lg p-8">
           <button onClick={() => navigate(-1)} className="mb-6 text-csfloat-blue hover:underline">&larr; Back</button>
           <h1 className="text-2xl font-bold text-white mb-6">Crypto Payment Instructions</h1>

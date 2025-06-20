@@ -214,7 +214,7 @@ const PaymentPage: React.FC<PaymentPageProps> = () => {
         </div>
       )}
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+      <div className={`max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 ${localStorage.getItem('skinforge_app_installed') !== 'true' ? 'pt-10' : ''}`}>
         <div className="bg-csfloat-dark/50 backdrop-blur-sm border border-csfloat-gray/20 rounded-lg p-8">
           <h1 className="text-3xl font-bold text-white mb-8">Complete Your Rental</h1>
           {/* Card payments banner */}
@@ -418,7 +418,7 @@ const PaymentPage: React.FC<PaymentPageProps> = () => {
 
       {/* Crypto Selection Modal */}
       {showCryptoModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
           <div className="bg-csfloat-dark border border-csfloat-gray/20 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-xl font-semibold text-white">Select Cryptocurrency</h3>

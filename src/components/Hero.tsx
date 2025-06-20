@@ -255,6 +255,22 @@ const Hero = () => {
             <button className="btn-secondary text-lg px-8 py-4">
               Browse Market
             </button>
+            <button 
+              onClick={() => {
+                // Trigger download prompt for giveaway promotion
+                const event = new CustomEvent('showGiveawayPrompt', {
+                  detail: {
+                    title: '🎉 Exclusive Giveaway! 🎉',
+                    message: 'Download the Skinforge app now and enter our weekly skin giveaway! Win premium CS2 skins worth up to $1000!',
+                    variant: 'giveaway'
+                  }
+                });
+                window.dispatchEvent(event);
+              }}
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-lg px-8 py-4 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200 animate-pulse"
+            >
+              🎁 Win Free Skins!
+            </button>
           </div>
 
           {/* Progress Bars Section */}

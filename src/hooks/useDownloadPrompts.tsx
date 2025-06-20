@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 interface DownloadPromptConfig {
   title: string;
   message: string;
-  variant?: 'default' | 'highlight' | 'warning';
+  variant?: 'default' | 'highlight' | 'warning' | 'giveaway';
 }
 
 export const useDownloadPrompts = () => {
@@ -40,7 +40,7 @@ export const useDownloadPrompts = () => {
   };
 
   // Function to show prompt with specific config
-  const triggerPrompt = useCallback((type: keyof typeof PROMPT_CONFIGS) => {
+  const triggerPrompt = useCallback((type: keyof typeof PROMPT_CONFIGS | 'custom', customConfig?: DownloadPromptConfig) => {
     if (isAppInstalled) return;
 
     const now = Date.now();
@@ -48,7 +48,11 @@ export const useDownloadPrompts = () => {
     const MIN_PROMPT_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
     if (timeSinceLastPrompt >= MIN_PROMPT_INTERVAL) {
-      setPromptConfig(PROMPT_CONFIGS[type]);
+      if (type === 'custom' && customConfig) {
+        setPromptConfig(customConfig);
+      } else {
+        setPromptConfig(PROMPT_CONFIGS[type as keyof typeof PROMPT_CONFIGS]);
+      }
       setShowPrompt(true);
       setLastPromptTime(now);
       localStorage.setItem('lastDownloadPromptTime', now.toString());
@@ -80,6 +84,25 @@ export const useDownloadPrompts = () => {
       triggerPrompt('browsing');
     }
   }, [isAppInstalled, triggerPrompt]);
+
+  // Listen for custom giveaway events
+  useEffect(() => {
+    const handleGiveawayEvent = (event: CustomEvent) => {
+      if (event.detail && event.detail.title && event.detail.message) {
+        triggerPrompt('custom', {
+          title: event.detail.title,
+          message: event.detail.message,
+          variant: event.detail.variant || 'giveaway'
+        });
+      }
+    };
+
+    window.addEventListener('showGiveawayPrompt', handleGiveawayEvent as EventListener);
+    
+    return () => {
+      window.removeEventListener('showGiveawayPrompt', handleGiveawayEvent as EventListener);
+    };
+  }, [triggerPrompt]);
 
   const closePrompt = useCallback(() => {
     setShowPrompt(false);

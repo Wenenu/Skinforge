@@ -10,7 +10,7 @@ const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const { steamId, signOut } = useAuth();
   const { currency, setCurrency } = useCurrency();
-  const [showDownloadBanner, setShowDownloadBanner] = useState(false);
+  const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
 
   useEffect(() => {
     const handleScroll = () => {
@@ -22,34 +22,23 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  useEffect(() => {
-    // Show download banner if app is not installed
-    const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
-    if (!isAppInstalled) {
-      setShowDownloadBanner(true);
-    }
-  }, []);
-
   return (
     <>
       {/* Download Promotion Banner */}
-      {showDownloadBanner && (
+      {!isAppInstalled && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-2 px-4 text-center">
           <div className="flex items-center justify-center space-x-4">
-            <span className="text-sm font-medium">Join our daily giveaways! Download the Skinforge app to participate</span>
-            <Link 
-              to="/download" 
-              className="bg-white text-purple-600 px-4 py-1 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors"
-            >
-              Download Now
-            </Link>
+            <span className="font-semibold">🎮 Download Skinforge App to participate in daily giveaways!</span>
             <button 
-              onClick={() => setShowDownloadBanner(false)}
-              className="text-white hover:text-gray-200"
+              onClick={() => {
+                // Trigger custom event for analytics
+                window.dispatchEvent(new CustomEvent('download_promotion_click', {
+                  detail: { location: 'header_banner' }
+                }));
+              }}
+              className="bg-white text-purple-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-gray-100 transition-colors"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              Learn More
             </button>
           </div>
         </div>
@@ -57,8 +46,8 @@ const Header = () => {
       
       <header className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 ${
         scrolled 
-          ? `bg-csfloat-dark/95 backdrop-blur-sm border-b border-csfloat-gray/20 py-2 ${showDownloadBanner ? 'top-10' : ''}` 
-          : `bg-transparent py-4 ${showDownloadBanner ? 'top-10' : ''}`
+          ? `bg-csfloat-dark/95 backdrop-blur-sm border-b border-csfloat-gray/20 py-2 ${!isAppInstalled ? 'top-10' : ''}` 
+          : `bg-transparent py-4 ${!isAppInstalled ? 'top-10' : ''}`
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">

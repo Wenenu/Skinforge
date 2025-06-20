@@ -551,82 +551,141 @@ const RentPage = () => {
     }
   };
 
-  // Add loading and error states to both authenticated and unauthenticated views
-  const renderContent = () => {
-    const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
+  const renderSkinsContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-csfloat-blue mx-auto mb-4"></div>
+            <p>Loading skins...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-white text-center">
+            <p className="text-red-500 mb-4">{error}</p>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="bg-csfloat-blue px-4 py-2 rounded hover:bg-csfloat-blue/80"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     return (
-      <div className="min-h-screen bg-csfloat-dark pt-20">
-        {/* Download Promotion Banner */}
-        {!isAppInstalled && (
-          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/30">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-              <div className="flex flex-col md:flex-row items-center justify-between">
-                <div className="text-center md:text-left mb-4 md:mb-0">
-                  <h3 className="text-xl font-bold text-white mb-2">Ready to Rent Premium Skins?</h3>
-                  <p className="text-csfloat-light/80">
-                    Download the Skinforge app to start renting and participate in daily giveaways!
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Link 
-                    to="/download"
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-center"
-                  >
-                    Download App
-                  </Link>
-                  <button 
-                    onClick={() => {
-                      const event = new CustomEvent('showGiveawayPrompt', {
-                        detail: {
-                          title: 'Daily Giveaway!',
-                          message: 'Download the Skinforge app to enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
-                          variant: 'giveaway'
-                        }
-                      });
-                      window.dispatchEvent(event);
-                    }}
-                    className="border border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-center"
-                  >
-                    Learn About Giveaways
-                  </button>
-                </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {displayedSkins.slice(0, 12).map((skin) => (
+          <div
+            key={skin.id}
+            className={`item-card p-4 rounded-lg cursor-pointer transition-all duration-300 ${
+              selectedSkin?.id === skin.id ? 'ring-2 ring-csfloat-accent' : ''
+            }`}
+            onClick={() => handleSkinSelect(skin)}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">{skin.name}</h3>
+              <span className="text-sm px-2 py-1 rounded" style={{ backgroundColor: skin.rarity.color + '20', color: skin.rarity.color }}>
+                {skin.rarity.name}
+              </span>
+            </div>
+            
+            <div className="relative aspect-video mb-4">
+              <img
+                src={getImageUrl(skin)}
+                alt={skin.name}
+                className="w-full h-full object-contain"
+                onError={() => handleImageError(skin.id)}
+              />
+            </div>
+            
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-csfloat-gray">Steam Market</p>
+                <p className="text-lg font-semibold">{formatCurrency(convertedPrices[skin.id] ?? skin.price, currency)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-csfloat-gray">Daily Rate</p>
+                <p className="text-lg font-semibold">{formatCurrency(convertedDailyRates[skin.id] ?? skin.dailyRate, currency)}</p>
               </div>
             </div>
           </div>
-        )}
+        ))}
+      </div>
+    );
+  };
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-4xl font-bold text-white">Available Skins for Rent</h1>
+  const renderSelectedSkinFooter = () => {
+    if (!selectedSkin) return null;
+
+    return (
+      <div className="fixed bottom-0 left-0 right-0 bg-csfloat-dark/95 backdrop-blur-sm border-t border-csfloat-gray/20 p-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button
-                onClick={handleDownloadClick}
-                className="bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 px-6 py-2 rounded-lg transition-colors flex items-center space-x-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Download Client</span>
-              </button>
-              <UserProfile />
-              {items.length > 0 && (
+              <img
+                src={getImageUrl(selectedSkin)}
+                alt={selectedSkin.name}
+                className="w-16 h-16 object-contain"
+                onError={() => handleImageError(selectedSkin.id)}
+              />
+              <div>
+                <h3 className="text-lg font-semibold">{selectedSkin.name}</h3>
+                <p className="text-sm text-csfloat-gray">Daily Rate: {formatCurrency(convertedDailyRates[selectedSkin.id] ?? selectedSkin.dailyRate, currency)}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
                 <button
-                  onClick={() => navigate('/payment', { state: { items } })}
-                  className="bg-csfloat-blue px-6 py-2 rounded-lg hover:bg-csfloat-blue/80 transition-colors flex items-center space-x-2"
+                  onClick={() => handleDaysChange(Math.max(1, rentDays - 1))}
+                  className="btn-secondary px-3 py-1"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  <span>Checkout ({items.length})</span>
+                  -
                 </button>
-              )}
+                <span className="w-12 text-center">{rentDays} days</span>
+                <button
+                  onClick={() => handleDaysChange(Math.min(30, rentDays + 1))}
+                  className="btn-secondary px-3 py-1"
+                >
+                  +
+                </button>
+              </div>
+              
+              <div className="w-px h-8 bg-csfloat-gray/20 mx-4"></div>
+              
+              <div className="text-right">
+                <p className="text-sm text-csfloat-gray">Total Price</p>
+                <p className="text-xl font-bold">{formatCurrency(totalPrice, currency)}</p>
+              </div>
+              
+              <div className="w-px h-8 bg-csfloat-gray/20 mx-4"></div>
+              
+              <div className="flex space-x-4">
+                <button 
+                  onClick={handleAddToCart}
+                  className="btn-secondary px-6 py-2"
+                >
+                  Add to Cart
+                </button>
+                <button
+                  className={`w-full py-2 px-4 rounded ${
+                    selectedSkin ? 'bg-csfloat-blue hover:bg-blue-600' : 'bg-gray-600 cursor-not-allowed'
+                  } text-white font-semibold transition-colors duration-200`}
+                  onClick={handleRentClick}
+                  disabled={!selectedSkin}
+                >
+                  {selectedSkin ? 'Rent Now' : 'Select a Skin'}
+                </button>
+              </div>
             </div>
           </div>
-          {/* Search and Filters */}
-          {/* Removed search input, shuffle button, and price filter dropdown */}
-
-          {renderContent()}
         </div>
       </div>
     );
@@ -654,7 +713,7 @@ const RentPage = () => {
 
           <div className="mt-16">
             <h2 className="text-2xl font-semibold text-white mb-8 text-center">Featured Skins Available for Rent</h2>
-            {renderContent()}
+            {renderSkinsContent()}
           </div>
         </div>
       </div>
@@ -663,6 +722,45 @@ const RentPage = () => {
 
   return (
     <div className="min-h-screen pt-16 bg-gradient-to-b from-csfloat-darker to-black">
+      {/* Download Promotion Banner */}
+      {localStorage.getItem('skinforge_app_installed') !== 'true' && (
+        <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/30">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div className="flex flex-col md:flex-row items-center justify-between">
+              <div className="text-center md:text-left mb-4 md:mb-0">
+                <h3 className="text-xl font-bold text-white mb-2">Ready to Rent Premium Skins?</h3>
+                <p className="text-csfloat-light/80">
+                  Download the Skinforge app to start renting and participate in daily giveaways!
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link 
+                  to="/download"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-center"
+                >
+                  Download App
+                </Link>
+                <button 
+                  onClick={() => {
+                    const event = new CustomEvent('showGiveawayPrompt', {
+                      detail: {
+                        title: 'Daily Giveaway!',
+                        message: 'Download the Skinforge app to enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
+                        variant: 'giveaway'
+                      }
+                    });
+                    window.dispatchEvent(event);
+                  }}
+                  className="border border-purple-500 text-purple-400 hover:bg-purple-500 hover:text-white px-6 py-3 rounded-lg font-semibold transition-all duration-200 text-center"
+                >
+                  Learn About Giveaways
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating Download CTA */}
       <DownloadCTA variant="floating" onDownloadClick={handleDownloadClick} />
 
@@ -697,13 +795,15 @@ const RentPage = () => {
         {/* Search and Filters */}
         {/* Removed search input, shuffle button, and price filter dropdown */}
 
-        {renderContent()}
+        {renderSkinsContent()}
       </div>
 
       {/* Download Modal */}
       {showDownloadModal && (
         <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
       )}
+
+      {renderSelectedSkinFooter()}
     </div>
   );
 };

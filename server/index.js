@@ -43,23 +43,8 @@ const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 let steam;
 try {
     const SteamOpenIDModule = await import("steam-openid");
-    console.log('SteamOpenID module loaded:', Object.keys(SteamOpenIDModule));
-    
-    // Try different ways to get the constructor
-    let SteamOpenID;
-    if (SteamOpenIDModule.default) {
-        SteamOpenID = SteamOpenIDModule.default;
-        console.log('Using default export');
-    } else if (SteamOpenIDModule.SteamOpenID) {
-        SteamOpenID = SteamOpenIDModule.SteamOpenID;
-        console.log('Using named export SteamOpenID');
-    } else if (typeof SteamOpenIDModule === 'function') {
-        SteamOpenID = SteamOpenIDModule;
-        console.log('Using module as function');
-    } else {
-        console.log('Available exports:', Object.keys(SteamOpenIDModule));
-        throw new Error('Could not find SteamOpenID constructor');
-    }
+    const SteamOpenID = SteamOpenIDModule.default.default;
+    console.log('SteamOpenID imported successfully');
     
     steam = new SteamOpenID({
         returnUrl: `${BACKEND_URL}/auth/steam/return`,
@@ -85,6 +70,19 @@ async function initDatabase() {
     try {
         pool = mysql.createPool({ ...dbConfig, waitForConnections: true, connectionLimit: 10, queueLimit: 0 });
         const connection = await pool.getConnection();
+        
+        // Create page_visits table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS page_visits (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                page_path VARCHAR(255) NOT NULL,
+                user_agent TEXT,
+                ip_address VARCHAR(45),
+                referrer VARCHAR(512),
+                visited_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        
         console.log('Successfully connected to MySQL database.');
         connection.release();
         dbReady = true;
@@ -105,6 +103,28 @@ app.get('/', (req, res) => {
   });
 });
 
+// Log page visits
+app.post('/api/log-visit', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { pagePath } = req.body;
+    const userAgent = req.get('User-Agent');
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const referrer = req.get('Referer');
+    
+    await pool.query(
+      'INSERT INTO page_visits (page_path, user_agent, ip_address, referrer) VALUES (?, ?, ?, ?)',
+      [pagePath, userAgent, ipAddress, referrer]
+    );
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error logging page visit:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // 2. Authentication Routes
 app.get('/auth/steam', async (req, res) => {
   const redirectUrl = await steam.getRedirectUrl();
@@ -113,19 +133,32 @@ app.get('/auth/steam', async (req, res) => {
 
 app.get('/auth/steam/return', async (req, res) => {
   try {
-    if (!dbReady) throw new Error("Database not ready.");
+    // Just verify the Steam authentication without storing anything
     const user = await steam.verify(req.query);
-    const steamId = user.steamid;
-
-    await pool.query(
-      `INSERT INTO users (steam_id) VALUES (?) ON DUPLICATE KEY UPDATE last_login = CURRENT_TIMESTAMP`,
-      [steamId]
-    );
+    console.log('Steam authentication successful for:', user.steamid);
     
-    res.redirect(`${FRONTEND_URL}/verify?steamId=${steamId}`);
+    // Redirect back to home page
+    res.redirect(FRONTEND_URL);
   } catch (err) {
     console.error("Steam OpenID verification failed:", err.message);
-    res.redirect(`${FRONTEND_URL}/login-failed?error=${encodeURIComponent(err.message)}`);
+    // Even on error, redirect to home page
+    res.redirect(FRONTEND_URL);
+  }
+});
+
+// Handle old /verify redirects
+app.get('/verify', async (req, res) => {
+  try {
+    // Just verify the Steam authentication without storing anything
+    const user = await steam.verify(req.query);
+    console.log('Steam authentication successful for:', user.steamid);
+    
+    // Redirect back to home page
+    res.redirect(FRONTEND_URL);
+  } catch (err) {
+    console.error("Steam OpenID verification failed:", err.message);
+    // Even on error, redirect to home page
+    res.redirect(FRONTEND_URL);
   }
 });
 
@@ -186,6 +219,49 @@ app.get("/api/admin/users", async (req, res) => {
     res.json(rows);
   } catch (err) {
     console.error("Error fetching users for admin:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/page-visits", async (req, res) => {
+  // TODO: Add authentication/authorization for this endpoint
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        page_path,
+        COUNT(*) as visit_count,
+        DATE(visited_at) as visit_date
+      FROM page_visits 
+      GROUP BY page_path, DATE(visited_at)
+      ORDER BY visit_date DESC, visit_count DESC
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error("Error fetching page visits for admin:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/page-visits-summary", async (req, res) => {
+  // TODO: Add authentication/authorization for this endpoint
+  try {
+    const [totalVisits] = await pool.query("SELECT COUNT(*) as total FROM page_visits");
+    const [todayVisits] = await pool.query("SELECT COUNT(*) as today FROM page_visits WHERE DATE(visited_at) = CURDATE()");
+    const [topPages] = await pool.query(`
+      SELECT page_path, COUNT(*) as count 
+      FROM page_visits 
+      GROUP BY page_path 
+      ORDER BY count DESC 
+      LIMIT 10
+    `);
+    
+    res.json({
+      totalVisits: totalVisits[0].total,
+      todayVisits: todayVisits[0].today,
+      topPages
+    });
+  } catch (err) {
+    console.error("Error fetching page visits summary for admin:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

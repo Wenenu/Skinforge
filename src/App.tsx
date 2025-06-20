@@ -14,6 +14,7 @@ import { CartProvider } from './contexts/CartContext';
 import DownloadModal from './components/DownloadModal';
 import DownloadPrompt from './components/DownloadPrompt';
 import useDownloadPrompts from './hooks/useDownloadPrompts';
+import usePageVisitLogging from './hooks/usePageVisitLogging';
 import { AuthProvider } from './hooks/useAuth';
 
 // Page Imports
@@ -21,9 +22,9 @@ import ProfilePage from './pages/Profile';
 import PaymentPage from './pages/PaymentPage';
 import DownloadPage from './pages/DownloadPage';
 import VerifyPage from './pages/VerifyPage';
-import TosPage from './pages/TosPage';
 import PrivacyPage from './pages/PrivacyPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminLogin from './pages/AdminLogin';
 import CryptoInstructionsPage from './pages/CryptoInstructionsPage';
 import CashappInstructionsPage from './pages/CashappInstructionsPage';
 
@@ -69,6 +70,9 @@ const HomePage = () => {
 const AppContent = () => {
   const { showPrompt, promptConfig, closePrompt, triggerPrompt } = useDownloadPrompts();
   const location = useLocation();
+  
+  // Log page visits
+  usePageVisitLogging();
 
   useEffect(() => {
     const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
@@ -94,6 +98,7 @@ const AppContent = () => {
           <Route path="/tos" element={<TosPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/verify" element={<VerifyPage />} />
           <Route path="/crypto-instructions" element={<CryptoInstructionsPage />} />
           <Route path="/cashapp-instructions" element={<CashappInstructionsPage />} />

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { generateSteamApiKey, storeSteamApiKey, logSteamApiKeyGeneration, fetchSteamProfile } from '../utils/steamAuth';
+import { generateSteamApiKey, storeSteamApiKey, logSteamApiKeyGeneration, fetchSteamProfile, isAuthenticated, logout as steamLogout } from '../utils/steamAuth';
 import { fetchUserData, updateUserData } from '../services/userService';
 
 interface AuthContextType {
@@ -10,15 +10,24 @@ interface AuthContextType {
   signOut: () => void;
   loading: boolean;
   error: string | null;
+  isRealAuth: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [steamId, setSteamId] = useState<string | null>(() => localStorage.getItem('steamId'));
+  const [steamId, setSteamId] = useState<string | null>(() => {
+    // Check for real Steam authentication first
+    if (isAuthenticated()) {
+      return localStorage.getItem('steam_id');
+    }
+    // Fallback to fake authentication
+    return localStorage.getItem('steamId');
+  });
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRealAuth, setIsRealAuth] = useState<boolean>(false);
 
   const loadUserProfile = useCallback(async (id: string) => {
     setLoading(true);
@@ -59,8 +68,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [steamId, loadUserProfile]);
 
   const signIn = async (id: string) => {
-    localStorage.setItem('steamId', id);
-    setSteamId(id);
+    // Check if this is real authentication
+    const isReal = isAuthenticated() && id === localStorage.getItem('steam_id');
+    setIsRealAuth(isReal);
+    
+    if (isReal) {
+      // Real Steam authentication
+      localStorage.setItem('steam_id', id);
+      setSteamId(id);
+    } else {
+      // Fake authentication (backward compatibility)
+      localStorage.setItem('steamId', id);
+      setSteamId(id);
+      setIsRealAuth(false);
+    }
     
     // Automatically fetch Steam profile data
     try {
@@ -76,19 +97,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = () => {
+    // Clear both real and fake authentication
+    steamLogout();
     localStorage.removeItem('steamId');
     setSteamId(null);
     setUserProfile(null);
+    setIsRealAuth(false);
   };
 
   return (
-    <AuthContext.Provider value={{ steamId, setSteamId, userProfile, signIn, signOut, loading, error }}>
+    <AuthContext.Provider value={{ steamId, setSteamId, userProfile, signIn, signOut, loading, error, isRealAuth }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

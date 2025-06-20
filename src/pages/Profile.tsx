@@ -43,7 +43,7 @@ const Profile = () => {
   const [isApiKeyFocused, setIsApiKeyFocused] = useState(false);
   const apiKeyInputRef = useRef(null);
   const navigate = useNavigate();
-  const { steamId, signOut } = useAuth();
+  const { steamId, signOut, isRealAuth } = useAuth();
   const [tradeLink, setTradeLink] = useState('');
   const [tradeLinkAuto, setTradeLinkAuto] = useState('');
   const userId = Number(localStorage.getItem('userId'));
@@ -203,6 +203,22 @@ const Profile = () => {
         />
 
         <div className="bg-csfloat-dark/50 backdrop-blur-sm border border-csfloat-gray/20 rounded-lg p-8">
+          {/* Authentication Status */}
+          <div className={`mb-6 p-4 rounded border-l-4 ${
+            isRealAuth 
+              ? 'bg-green-900/40 border-green-500' 
+              : 'bg-yellow-900/40 border-yellow-500'
+          }`}>
+            <span className={`font-semibold ${
+              isRealAuth ? 'text-green-300' : 'text-yellow-300'
+            }`}>
+              {isRealAuth 
+                ? '✅ Real Steam Authentication Active' 
+                : '⚠️ Using Demo Authentication - Submit your API Key for full functionality'
+              }
+            </span>
+          </div>
+
           {/* Notice for API Key */}
           <div className="mb-6 p-4 bg-yellow-900/40 border-l-4 border-yellow-500 rounded">
             <span className="text-yellow-300 font-semibold">To properly display info and for the site to work properly, please submit your API Key.</span>
@@ -236,7 +252,7 @@ const Profile = () => {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-csfloat-light/70">Member Since</span>
-                    <span className="text-white">{isMockProfile ? 'N/A' : 'March 2024'}</span>
+                    <span className="text-white">June 2025</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-csfloat-light/70">Total Rentals</span>

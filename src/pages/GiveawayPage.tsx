@@ -52,7 +52,7 @@ const GiveawayPage: React.FC = () => {
   const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
 
   return (
-    <div className="min-h-screen pt-16 bg-gradient-to-b from-csfloat-darker to-black">
+    <div className={`min-h-screen bg-gradient-to-b from-csfloat-darker to-black ${!isAppInstalled ? 'pt-26' : 'pt-16'}`}>
       {/* Download Promotion Banner */}
       {!isAppInstalled && (
         <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-b border-purple-500/30">

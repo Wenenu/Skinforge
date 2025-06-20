@@ -252,18 +252,8 @@ const Hero = () => {
             <Link to="/rent" className="btn-primary text-lg px-8 py-4">
               Rent Skins
             </Link>
-            <button 
-              onClick={() => {
-                // Trigger download prompt for giveaway promotion
-                const event = new CustomEvent('showGiveawayPrompt', {
-                  detail: {
-                    title: 'Exclusive Giveaway!',
-                    message: 'Download the Skinforge app now and enter our daily skin giveaway! Win premium CS2 skins worth up to $1000!',
-                    variant: 'giveaway'
-                  }
-                });
-                window.dispatchEvent(event);
-              }}
+            <Link 
+              to="/giveaway"
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold text-xl px-10 py-5 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-200"
               style={{ 
                 animation: 'gentlePulse 3s ease-in-out infinite',
@@ -271,7 +261,7 @@ const Hero = () => {
               }}
             >
               Win Free Skins!
-            </button>
+            </Link>
             <button className="btn-secondary text-lg px-8 py-4">
               Browse Market
             </button>

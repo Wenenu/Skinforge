@@ -59,7 +59,7 @@ const StatCard = ({ title, value, isPercentage = false, isError = false }: { tit
 );
 
 const fetchUsers = async () => {
-  const res = await fetch('http://localhost:3000/api/admin/users', {
+  const res = await fetch('/api/admin/users', {
     headers: { 'x-admin-token': 'supersecretadmintoken' },
   });
   if (!res.ok) throw new Error('Failed to fetch users');
@@ -67,7 +67,7 @@ const fetchUsers = async () => {
 };
 
 const fetchPageStats = async () => {
-  const res = await fetch('http://localhost:3000/api/admin/page-visits-summary', {
+  const res = await fetch('/api/admin/page-visits-summary', {
     headers: { 'x-admin-token': 'supersecretadmintoken' },
   });
   if (!res.ok) throw new Error('Failed to fetch page stats');

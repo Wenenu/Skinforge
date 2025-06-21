@@ -21,7 +21,7 @@ import { downloadClientImmediately } from './utils/immediateDownload';
 
 // Lazy load pages for better performance
 const HomePage = lazy(() => import('./pages/HomePage'));
-const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const ProfilePage = lazy(() => import('./pages/Profile'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));

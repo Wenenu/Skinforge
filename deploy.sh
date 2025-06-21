@@ -22,7 +22,9 @@ print_error() {
 }
 
 # Check if we're on the VPS
-if [[ "$(hostname)" != *"ubuntu"* ]]; then
+if [[ "$(hostname)" == "sf" ]] || [[ "$(hostname)" == *"ubuntu"* ]]; then
+    print_status "Running on VPS: $(hostname)"
+else
     print_error "This script should be run on the VPS, not locally!"
     exit 1
 fi

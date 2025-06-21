@@ -684,13 +684,59 @@ app.get("/api/admin/analytics/detailed", authenticateAdmin, async (req, res) => 
       ORDER BY count DESC
     `);
 
+    // Get device/browser analytics
+    const [deviceStats] = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN user_agent LIKE '%Mobile%' THEN 'Mobile'
+          WHEN user_agent LIKE '%Tablet%' THEN 'Tablet'
+          ELSE 'Desktop'
+        END as device_type,
+        COUNT(*) as count
+      FROM page_visits 
+      GROUP BY device_type
+      ORDER BY count DESC
+    `);
+
+    // Get browser statistics
+    const [browserStats] = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN user_agent LIKE '%Chrome%' THEN 'Chrome'
+          WHEN user_agent LIKE '%Firefox%' THEN 'Firefox'
+          WHEN user_agent LIKE '%Safari%' AND user_agent NOT LIKE '%Chrome%' THEN 'Safari'
+          WHEN user_agent LIKE '%Edge%' THEN 'Edge'
+          WHEN user_agent LIKE '%Opera%' THEN 'Opera'
+          ELSE 'Other'
+        END as browser,
+        COUNT(*) as count
+      FROM page_visits 
+      GROUP BY browser
+      ORDER BY count DESC
+    `);
+
+    // Get growth trends (last 30 days)
+    const [growthTrend] = await pool.query(`
+      SELECT 
+        DATE(visited_at) as date,
+        COUNT(*) as visits,
+        COUNT(DISTINCT ip_address) as unique_visitors
+      FROM page_visits 
+      WHERE visited_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY DATE(visited_at)
+      ORDER BY date
+    `);
+
     res.json({
       hourlyVisits,
       dailyVisits,
       uniqueVisitorsToday: uniqueVisitorsToday[0].unique_visitors,
       uniqueVisitorsTotal: uniqueVisitorsTotal[0].unique_visitors,
       activeHours,
-      referrerStats
+      referrerStats,
+      deviceStats,
+      browserStats,
+      growthTrend
     });
   } catch (err) {
     console.error("Error fetching detailed analytics:", err);
@@ -796,6 +842,65 @@ app.get("/api/admin/analytics/page-performance", authenticateAdmin, async (req, 
     });
   } catch (err) {
     console.error("Error fetching page performance analytics:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/realtime", authenticateAdmin, async (req, res) => {
+  try {
+    // Get current active users (visits in last 5 minutes)
+    const [activeUsers] = await pool.query(`
+      SELECT COUNT(DISTINCT ip_address) as active_users
+      FROM page_visits 
+      WHERE visited_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+    `);
+
+    // Get recent page visits (last 10 minutes)
+    const [recentVisits] = await pool.query(`
+      SELECT 
+        page_path,
+        ip_address,
+        visited_at,
+        user_agent
+      FROM page_visits 
+      WHERE visited_at >= DATE_SUB(NOW(), INTERVAL 10 MINUTE)
+      ORDER BY visited_at DESC
+      LIMIT 20
+    `);
+
+    // Get hourly trend for today
+    const [hourlyTrend] = await pool.query(`
+      SELECT 
+        HOUR(visited_at) as hour,
+        COUNT(*) as visits,
+        COUNT(DISTINCT ip_address) as unique_visitors
+      FROM page_visits 
+      WHERE DATE(visited_at) = CURDATE()
+      GROUP BY HOUR(visited_at)
+      ORDER BY hour
+    `);
+
+    // Get top pages for today
+    const [topPagesToday] = await pool.query(`
+      SELECT 
+        page_path,
+        COUNT(*) as visits,
+        COUNT(DISTINCT ip_address) as unique_visitors
+      FROM page_visits 
+      WHERE DATE(visited_at) = CURDATE()
+      GROUP BY page_path
+      ORDER BY visits DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      activeUsers: activeUsers[0].active_users,
+      recentVisits,
+      hourlyTrend,
+      topPagesToday
+    });
+  } catch (err) {
+    console.error("Error fetching real-time analytics:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -31,6 +31,9 @@ interface DetailedAnalytics {
   uniqueVisitorsTotal: number;
   activeHours: Array<{ hour: number; count: number }>;
   referrerStats: Array<{ source: string; count: number }>;
+  deviceStats: Array<{ device_type: string; count: number }>;
+  browserStats: Array<{ browser: string; count: number }>;
+  growthTrend: Array<{ date: string; visits: number; unique_visitors: number }>;
 }
 
 interface UserEngagement {
@@ -80,6 +83,26 @@ interface SiteStats {
   averageDailyRentals: number;
   apiKeyGenerationSuccess: number;
   apiKeyGenerationFailed: number;
+}
+
+interface RealTimeAnalytics {
+  activeUsers: number;
+  recentVisits: Array<{
+    page_path: string;
+    ip_address: string;
+    visited_at: string;
+    user_agent: string;
+  }>;
+  hourlyTrend: Array<{
+    hour: number;
+    visits: number;
+    unique_visitors: number;
+  }>;
+  topPagesToday: Array<{
+    page_path: string;
+    visits: number;
+    unique_visitors: number;
+  }>;
 }
 
 const EmptyState = ({ message }: { message: string }) => (
@@ -194,17 +217,26 @@ const fetchPagePerformance = async (adminToken: string) => {
   return res.json();
 };
 
+const fetchRealTimeAnalytics = async (adminToken: string) => {
+  const res = await fetch('/api/admin/analytics/realtime', {
+    headers: { 'Authorization': `Bearer ${adminToken}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch real-time analytics');
+  return res.json();
+};
+
 const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [pageStats, setPageStats] = useState<PageVisitSummary | null>(null);
   const [detailedAnalytics, setDetailedAnalytics] = useState<DetailedAnalytics | null>(null);
   const [userEngagement, setUserEngagement] = useState<UserEngagement | null>(null);
   const [pagePerformance, setPagePerformance] = useState<PagePerformance | null>(null);
+  const [realTimeAnalytics, setRealTimeAnalytics] = useState<RealTimeAnalytics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [activeTab, setActiveTab] = useState<'dashboard' | 'c2'>('dashboard');
-  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'overview' | 'users' | 'pages'>('overview');
+  const [activeAnalyticsTab, setActiveAnalyticsTab] = useState<'overview' | 'users' | 'pages' | 'enhanced'>('overview');
   const { adminLogout, isAdminAuthenticated } = useAdminAuth();
   const navigate = useNavigate();
 
@@ -226,18 +258,20 @@ const AdminPanel = () => {
         throw new Error('No admin token found');
       }
 
-      const [usersData, statsData, detailedData, engagementData, performanceData] = await Promise.all([
+      const [usersData, statsData, detailedData, engagementData, performanceData, realTimeData] = await Promise.all([
         fetchUsers(adminToken),
         fetchPageStats(adminToken),
         fetchDetailedAnalytics(adminToken),
         fetchUserEngagement(adminToken),
-        fetchPagePerformance(adminToken)
+        fetchPagePerformance(adminToken),
+        fetchRealTimeAnalytics(adminToken)
       ]);
       setUsers(usersData);
       setPageStats(statsData);
       setDetailedAnalytics(detailedData);
       setUserEngagement(engagementData);
       setPagePerformance(performanceData);
+      setRealTimeAnalytics(realTimeData);
       setLastUpdated(new Date());
     } catch (error) {
       console.error("Failed to fetch admin data", error);
@@ -366,11 +400,12 @@ const AdminPanel = () => {
                   {[
                     { id: 'overview', label: 'Overview' },
                     { id: 'users', label: 'User Analytics' },
-                    { id: 'pages', label: 'Page Analytics' }
+                    { id: 'pages', label: 'Page Analytics' },
+                    { id: 'enhanced', label: 'Enhanced Analytics' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveAnalyticsTab(tab.id as 'overview' | 'users' | 'pages')}
+                      onClick={() => setActiveAnalyticsTab(tab.id as 'overview' | 'users' | 'pages' | 'enhanced')}
                       className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                         activeAnalyticsTab === tab.id
                           ? 'bg-csfloat-blue text-white'
@@ -478,6 +513,97 @@ const AdminPanel = () => {
                             <div key={source.source} className="flex justify-between items-center text-sm">
                               <span className="text-csfloat-light/80">{source.source}</span>
                               <span className="text-white font-medium">{source.count} visits</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Device Analytics */}
+                    {detailedAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20 mb-8">
+                        <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Device Types</h3>
+                        <div className="space-y-2">
+                          {detailedAnalytics.deviceStats.map((device) => (
+                            <div key={device.device_type} className="flex justify-between items-center text-sm">
+                              <span className="text-csfloat-light/80">{device.device_type}</span>
+                              <span className="text-white font-medium">{device.count} visits</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Browser Analytics */}
+                    {detailedAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20 mb-8">
+                        <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Browser Usage</h3>
+                        <div className="space-y-2">
+                          {detailedAnalytics.browserStats.map((browser) => (
+                            <div key={browser.browser} className="flex justify-between items-center text-sm">
+                              <span className="text-csfloat-light/80">{browser.browser}</span>
+                              <span className="text-white font-medium">{browser.count} visits</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Growth Trend */}
+                    {detailedAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                        <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Growth Trend (30 Days)</h3>
+                        <div className="space-y-2">
+                          {detailedAnalytics.growthTrend.slice(-7).map((day) => (
+                            <div key={day.date} className="flex justify-between items-center text-sm">
+                              <span className="text-csfloat-light/80">{new Date(day.date).toLocaleDateString()}</span>
+                              <div className="flex space-x-4">
+                                <span className="text-white">{day.visits} visits</span>
+                                <span className="text-csfloat-light/60">({day.unique_visitors} unique)</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Real-Time Analytics */}
+                    {realTimeAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20 mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-medium text-csfloat-light/90">Real-Time Activity</h3>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="text-green-500 text-sm font-medium">Live</span>
+                          </div>
+                        </div>
+                        
+                        {/* Active Users */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                          <div className="bg-csfloat-gray/10 rounded-lg p-4">
+                            <h4 className="text-csfloat-light/70 text-sm mb-2">Currently Active Users</h4>
+                            <p className="text-2xl font-bold text-green-500">{realTimeAnalytics.activeUsers}</p>
+                            <p className="text-csfloat-light/60 text-xs">Last 5 minutes</p>
+                          </div>
+                          <div className="bg-csfloat-gray/10 rounded-lg p-4">
+                            <h4 className="text-csfloat-light/70 text-sm mb-2">Recent Visits</h4>
+                            <p className="text-2xl font-bold text-blue-500">{realTimeAnalytics.recentVisits.length}</p>
+                            <p className="text-csfloat-light/60 text-xs">Last 10 minutes</p>
+                          </div>
+                        </div>
+
+                        {/* Recent Activity */}
+                        <div className="space-y-2">
+                          <h4 className="text-csfloat-light/70 text-sm mb-3">Recent Page Visits</h4>
+                          {realTimeAnalytics.recentVisits.slice(0, 5).map((visit, index) => (
+                            <div key={index} className="flex justify-between items-center text-sm border-b border-csfloat-gray/10 pb-2">
+                              <div className="flex items-center space-x-3">
+                                <span className="text-csfloat-light/80">{visit.page_path}</span>
+                                <span className="text-csfloat-light/60 text-xs">{visit.ip_address}</span>
+                              </div>
+                              <span className="text-csfloat-light/60 text-xs">
+                                {new Date(visit.visited_at).toLocaleTimeString()}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -668,6 +794,140 @@ const AdminPanel = () => {
                               </div>
                             </div>
                           ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Enhanced Analytics Tab */}
+                {activeAnalyticsTab === 'enhanced' && (
+                  <>
+                    {/* Key Metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      <StatCard 
+                        title="Total Unique Visitors" 
+                        value={detailedAnalytics?.uniqueVisitorsTotal ?? 0}
+                        subtitle="All time"
+                      />
+                      <StatCard 
+                        title="Today's Unique Visitors" 
+                        value={detailedAnalytics?.uniqueVisitorsToday ?? 0}
+                        subtitle="Unique IPs"
+                      />
+                      <StatCard 
+                        title="Most Active Hour" 
+                        value={detailedAnalytics?.activeHours[0]?.hour ?? 0}
+                        subtitle={`${detailedAnalytics?.activeHours[0]?.count ?? 0} visits`}
+                      />
+                      <StatCard 
+                        title="Top Traffic Source" 
+                        value={detailedAnalytics?.referrerStats[0]?.source ?? 'N/A'}
+                        subtitle={`${detailedAnalytics?.referrerStats[0]?.count ?? 0} visits`}
+                      />
+                    </div>
+
+                    {/* Device and Browser Analytics */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                      {/* Device Types */}
+                      {detailedAnalytics && (
+                        <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                          <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Device Types</h3>
+                          <div className="space-y-3">
+                            {detailedAnalytics.deviceStats.map((device) => {
+                              const percentage = Math.round((device.count / detailedAnalytics.deviceStats.reduce((acc, d) => acc + d.count, 0)) * 100);
+                              return (
+                                <div key={device.device_type} className="flex items-center justify-between">
+                                  <span className="text-csfloat-light/80">{device.device_type}</span>
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-24 bg-csfloat-gray/20 rounded-full h-2">
+                                      <div 
+                                        className="bg-csfloat-blue h-2 rounded-full" 
+                                        style={{ width: `${percentage}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-white font-medium text-sm">{percentage}%</span>
+                                    <span className="text-csfloat-light/60 text-sm">({device.count})</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Browser Usage */}
+                      {detailedAnalytics && (
+                        <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                          <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Browser Usage</h3>
+                          <div className="space-y-3">
+                            {detailedAnalytics.browserStats.map((browser) => {
+                              const percentage = Math.round((browser.count / detailedAnalytics.browserStats.reduce((acc, b) => acc + b.count, 0)) * 100);
+                              return (
+                                <div key={browser.browser} className="flex items-center justify-between">
+                                  <span className="text-csfloat-light/80">{browser.browser}</span>
+                                  <div className="flex items-center space-x-3">
+                                    <div className="w-24 bg-csfloat-gray/20 rounded-full h-2">
+                                      <div 
+                                        className="bg-green-500 h-2 rounded-full" 
+                                        style={{ width: `${percentage}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-white font-medium text-sm">{percentage}%</span>
+                                    <span className="text-csfloat-light/60 text-sm">({browser.count})</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Growth Trend Chart */}
+                    {detailedAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20 mb-8">
+                        <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Growth Trend (Last 30 Days)</h3>
+                        <div className="space-y-2">
+                          {detailedAnalytics.growthTrend.map((day) => (
+                            <div key={day.date} className="flex justify-between items-center text-sm border-b border-csfloat-gray/10 pb-2">
+                              <span className="text-csfloat-light/80">{new Date(day.date).toLocaleDateString()}</span>
+                              <div className="flex space-x-6">
+                                <span className="text-white">{day.visits} total visits</span>
+                                <span className="text-csfloat-light/60">{day.unique_visitors} unique visitors</span>
+                                <span className="text-csfloat-blue">
+                                  {day.visits > 0 ? Math.round((day.unique_visitors / day.visits) * 100) : 0}% unique rate
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Traffic Sources */}
+                    {detailedAnalytics && (
+                      <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                        <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Traffic Sources</h3>
+                        <div className="space-y-3">
+                          {detailedAnalytics.referrerStats.map((source) => {
+                            const percentage = Math.round((source.count / detailedAnalytics.referrerStats.reduce((acc, s) => acc + s.count, 0)) * 100);
+                            return (
+                              <div key={source.source} className="flex items-center justify-between">
+                                <span className="text-csfloat-light/80">{source.source}</span>
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-24 bg-csfloat-gray/20 rounded-full h-2">
+                                    <div 
+                                      className="bg-purple-500 h-2 rounded-full" 
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="text-white font-medium text-sm">{percentage}%</span>
+                                  <span className="text-csfloat-light/60 text-sm">({source.count})</span>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

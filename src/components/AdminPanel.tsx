@@ -258,7 +258,7 @@ const AdminPanel = () => {
         throw new Error('No admin token found');
       }
 
-      const [usersData, statsData, detailedData, engagementData, performanceData, realTimeData] = await Promise.all([
+      const results = await Promise.allSettled([
         fetchUsers(adminToken),
         fetchPageStats(adminToken),
         fetchDetailedAnalytics(adminToken),
@@ -266,22 +266,52 @@ const AdminPanel = () => {
         fetchPagePerformance(adminToken),
         fetchRealTimeAnalytics(adminToken)
       ]);
-      setUsers(usersData);
-      setPageStats(statsData);
-      setDetailedAnalytics(detailedData);
-      setUserEngagement(engagementData);
-      setPagePerformance(performanceData);
-      setRealTimeAnalytics(realTimeData);
+
+      if (results[0].status === 'fulfilled') {
+        setUsers(results[0].value);
+      } else {
+        console.error("Failed to fetch users:", results[0].reason);
+        setUsers([]);
+      }
+
+      if (results[1].status === 'fulfilled') {
+        setPageStats(results[1].value);
+      } else {
+        console.error("Failed to fetch page stats:", results[1].reason);
+        setPageStats({ totalVisits: 0, todayVisits: 0, topPages: [] });
+      }
+
+      if (results[2].status === 'fulfilled') {
+        setDetailedAnalytics(results[2].value);
+      } else {
+        console.error("Failed to fetch detailed analytics:", results[2].reason);
+        setDetailedAnalytics(null);
+      }
+
+      if (results[3].status === 'fulfilled') {
+        setUserEngagement(results[3].value);
+      } else {
+        console.error("Failed to fetch user engagement:", results[3].reason);
+        setUserEngagement(null);
+      }
+
+      if (results[4].status === 'fulfilled') {
+        setPagePerformance(results[4].value);
+      } else {
+        console.error("Failed to fetch page performance:", results[4].reason);
+        setPagePerformance(null);
+      }
+
+      if (results[5].status === 'fulfilled') {
+        setRealTimeAnalytics(results[5].value);
+      } else {
+        console.error("Failed to fetch real-time analytics:", results[5].reason);
+        setRealTimeAnalytics(null);
+      }
+
       setLastUpdated(new Date());
     } catch (error) {
-      console.error("Failed to fetch admin data", error);
-      // Set empty data to show the UI even if API fails
-      setUsers([]);
-      setPageStats({
-        totalVisits: 0,
-        todayVisits: 0,
-        topPages: []
-      });
+      console.error("An unexpected error occurred in fetchData:", error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

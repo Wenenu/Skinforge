@@ -47,7 +47,6 @@ const Profile = () => {
   const [tradeLink, setTradeLink] = useState('');
   const [tradeLinkAuto, setTradeLinkAuto] = useState('');
   const userId = Number(localStorage.getItem('userId'));
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
   const isGuest = steamId === DUMMY_ID;
   const displayProfile = profile || {
@@ -156,7 +155,7 @@ const Profile = () => {
   };
 
   const handleDownloadClick = () => {
-    setShowDownloadModal(true);
+    navigate('/download');
   };
 
   // Determine if using mock profile
@@ -348,11 +347,6 @@ const Profile = () => {
           </div>
         </div>
       </div>
-
-      {/* Download Modal */}
-      {showDownloadModal && (
-        <DownloadModal isOpen={showDownloadModal} onClose={() => setShowDownloadModal(false)} />
-      )}
     </div>
   );
 };

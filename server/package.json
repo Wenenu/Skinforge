@@ -13,6 +13,7 @@
     "express": "^4.19.2",
     "mysql2": "^3.10.3",
     "node-fetch": "^3.3.2",
+    "pm2": "^6.0.8",
     "steam-openid": "^1.1.0"
   },
   "author": "",

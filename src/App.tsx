@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Header from './components/Header';
@@ -16,20 +16,18 @@ import DownloadModal from './components/DownloadModal';
 import DownloadPrompt from './components/DownloadPrompt';
 import useDownloadPrompts from './hooks/useDownloadPrompts';
 import usePageVisitLogging from './hooks/usePageVisitLogging';
-import { AuthProvider } from './hooks/useAuth';
+import { AuthProvider } from './contexts/AuthContext';
 import { downloadClientImmediately } from './utils/immediateDownload';
 
-// Page Imports
-import ProfilePage from './pages/Profile';
-import PaymentPage from './pages/PaymentPage';
-import DownloadPage from './pages/DownloadPage';
-import VerifyPage from './pages/VerifyPage';
-import PrivacyPage from './pages/PrivacyPage';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminLogin from './pages/AdminLogin';
-import CryptoInstructionsPage from './pages/CryptoInstructionsPage';
-import CashappInstructionsPage from './pages/CashappInstructionsPage';
-import GiveawayPage from './pages/GiveawayPage';
+// Lazy load pages for better performance
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const PaymentPage = lazy(() => import('./pages/PaymentPage'));
+const DownloadPage = lazy(() => import('./pages/DownloadPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
+const VerifyPage = lazy(() => import('./pages/VerifyPage'));
 
 const pageVariants = {
   initial: {
@@ -53,45 +51,6 @@ const pageTransition = {
   type: "tween",
   ease: "anticipate",
   duration: 0.5
-};
-
-const HomePage = () => {
-  const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const location = useLocation();
-  const { showPrompt, promptConfig, closePrompt, triggerPrompt } = useDownloadPrompts();
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    if (params.get('showDownload') === 'true') {
-      setShowDownloadModal(true);
-      // Remove the showDownload parameter from the URL
-      params.delete('showDownload');
-      const newSearch = params.toString();
-      const newUrl = `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`;
-      window.history.replaceState({}, '', newUrl);
-    }
-  }, [location]);
-
-  const handleCloseModal = () => {
-    setShowDownloadModal(false);
-  };
-
-  return (
-    <>
-      <Hero />
-      <InfoSection />
-      <Features />
-      <TradingProcess />
-      <DownloadModal isOpen={showDownloadModal} onClose={handleCloseModal} />
-      <DownloadPrompt
-        isOpen={showPrompt}
-        onClose={closePrompt}
-        title={promptConfig.title}
-        message={promptConfig.message}
-        variant={promptConfig.variant}
-      />
-    </>
-  );
 };
 
 const AppContent = () => {
@@ -131,18 +90,21 @@ const AppContent = () => {
       <main>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><HomePage /></motion.div>} />
-            <Route path="/rent" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><RentPage /></motion.div>} />
-            <Route path="/profile" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><ProfilePage /></motion.div>} />
-            <Route path="/payment" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><PaymentPage /></motion.div>} />
-            <Route path="/download" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><DownloadPage /></motion.div>} />
-            <Route path="/privacy" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><PrivacyPage /></motion.div>} />
-            <Route path="/admin" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><ProtectedRoute><AdminDashboard /></ProtectedRoute></motion.div>} />
-            <Route path="/admin/login" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><AdminLogin /></motion.div>} />
-            <Route path="/verify" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><VerifyPage /></motion.div>} />
-            <Route path="/crypto-instructions" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><CryptoInstructionsPage /></motion.div>} />
-            <Route path="/cashapp-instructions" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><CashappInstructionsPage /></motion.div>} />
-            <Route path="/giveaway" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><GiveawayPage /></motion.div>} />
+            <Route path="/" element={<motion.div><HomePage /></motion.div>} />
+            <Route path="/rent" element={<motion.div><RentPage /></motion.div>} />
+            <Route path="/profile" element={<motion.div><ProfilePage /></motion.div>} />
+            <Route path="/payment" element={<motion.div><PaymentPage /></motion.div>} />
+            <Route path="/download" element={<motion.div><DownloadPage /></motion.div>} />
+            <Route path="/privacy" element={<motion.div><PrivacyPage /></motion.div>} />
+            <Route path="/admin" element={
+              <motion.div>
+                <ProtectedRoute>
+                  <AdminPanel />
+                </ProtectedRoute>
+              </motion.div>
+            } />
+            <Route path="/admin/login" element={<motion.div><AdminLogin /></motion.div>} />
+            <Route path="/verify" element={<motion.div><VerifyPage /></motion.div>} />
           </Routes>
         </AnimatePresence>
       </main>
@@ -166,21 +128,18 @@ function ScrollToTop() {
   return null;
 }
 
-function App() {
+const App: React.FC = () => {
   return (
-    <AdminAuthProvider>
-      <CurrencyProvider>
-        <AuthProvider>
-          <CartProvider>
-            <Router>
-              <ScrollToTop />
-              <AppContent />
-            </Router>
-          </CartProvider>
-        </AuthProvider>
-      </CurrencyProvider>
-    </AdminAuthProvider>
+    <Router>
+      <AuthProvider>
+        <AdminAuthProvider>
+          <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-csfloat-dark">Loading...</div>}>
+            <AppContent />
+          </Suspense>
+        </AdminAuthProvider>
+      </AuthProvider>
+    </Router>
   );
-}
+};
 
 export default App;

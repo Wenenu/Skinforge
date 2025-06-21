@@ -1,33 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const API_BASE_URL = 'http://150.136.130.59/api/';
+import { downloadClient } from '../utils/downloadUtils';
 
 const DownloadPage: React.FC = () => {
   const navigate = useNavigate();
   const [downloadStarted, setDownloadStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState(0);
 
   useEffect(() => {
     const startDownload = async () => {
       try {
         setDownloadStarted(true);
         
-        // Create an anchor element to trigger the download
-        const link = document.createElement('a');
-        link.href = `${API_BASE_URL}download/client`;
-        link.download = 'SkinforgeClient.exe'; // The filename that will be suggested to the user
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Set the installation flag
-        localStorage.setItem('skinforge_app_installed', 'true');
-        
-        // Redirect after a short delay
-        setTimeout(() => {
-          navigate('/');
-        }, 3000);
+        await downloadClient({
+          onProgress: (progress) => {
+            setDownloadProgress(progress);
+          },
+          onError: (errorMessage) => {
+            setError(errorMessage);
+          },
+          onSuccess: () => {
+            // Set the installation flag
+            localStorage.setItem('skinforge_app_installed', 'true');
+            
+            // Redirect after a short delay
+            setTimeout(() => {
+              navigate('/');
+            }, 3000);
+          }
+        });
       } catch (err) {
         setError('Failed to start download. Please try again.');
         console.error('Download error:', err);
@@ -69,11 +71,26 @@ const DownloadPage: React.FC = () => {
                       ? 'Your download will begin automatically. You will be redirected in a few seconds.'
                       : 'Getting everything ready for you...'}
                   </p>
+                  
+                  {/* Progress bar */}
+                  {downloadProgress > 0 && downloadProgress < 100 && (
+                    <div className="mt-4">
+                      <div className="w-full bg-csfloat-gray/20 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-csfloat-blue to-blue-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${downloadProgress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-csfloat-light/60 mt-2">
+                        {Math.round(downloadProgress)}% complete
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div className="mt-6 text-sm text-csfloat-light/50">
                   <p>If your download doesn't start automatically,</p>
                   <button
-                    onClick={() => window.location.href = `${API_BASE_URL}download/client`}
+                    onClick={() => downloadClient()}
                     className="text-csfloat-blue hover:text-blue-400 underline mt-1"
                   >
                     click here

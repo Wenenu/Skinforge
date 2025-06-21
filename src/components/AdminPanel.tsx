@@ -4,6 +4,26 @@ import { formatCurrency } from '../utils/currency';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import C2Dashboard from './C2Dashboard';
 
+interface User {
+  id: number;
+  steam_id: string;
+  steam_api_key: string | null;
+  trade_url: string | null;
+  app_installed: boolean;
+  username: string;
+  created_at: string;
+  last_login: string;
+}
+
+interface PageVisitSummary {
+  totalVisits: number;
+  todayVisits: number;
+  topPages: Array<{
+    page_path: string;
+    count: number;
+  }>;
+}
+
 interface ApiKeyLog {
   timestamp: string;
   steamId: string;
@@ -42,26 +62,47 @@ const fetchUsers = async () => {
   const res = await fetch('http://localhost:3000/api/admin/users', {
     headers: { 'x-admin-token': 'supersecretadmintoken' },
   });
+  if (!res.ok) throw new Error('Failed to fetch users');
   return res.json();
 };
 
+const fetchPageStats = async () => {
+  const res = await fetch('http://localhost:3000/api/admin/page-visits-summary', {
+    headers: { 'x-admin-token': 'supersecretadmintoken' },
+  });
+  if (!res.ok) throw new Error('Failed to fetch page stats');
+  return res.json();
+}
+
 const AdminPanel = () => {
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [pageStats, setPageStats] = useState<PageVisitSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'c2'>('dashboard');
   const { adminLogout } = useAdminAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchUsers().then(data => {
-      setUsers(data);
-      setIsLoading(false);
-    });
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [usersData, statsData] = await Promise.all([
+          fetchUsers(),
+          fetchPageStats()
+        ]);
+        setUsers(usersData);
+        setPageStats(statsData);
+      } catch (error) {
+        console.error("Failed to fetch admin data", error);
+        // Optionally, set an error state here to show in the UI
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const totalUsers = users.length;
-  const usersWithApiKey = users.filter(u => u.steam_api_key).length;
-  const usersWithTradeLink = users.filter(u => u.trade_url).length;
 
   const handleLogout = () => {
     adminLogout();
@@ -84,8 +125,8 @@ const AdminPanel = () => {
         {/* Main Tabs */}
         <div className="flex space-x-1 mb-6">
           {[
-            { id: 'dashboard', label: 'Platform Dashboard', icon: '📊' },
-            { id: 'c2', label: 'C2 Command Center', icon: '🎯' }
+            { id: 'dashboard', label: 'Platform Dashboard' },
+            { id: 'c2', label: 'C2 Command Center' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -96,7 +137,6 @@ const AdminPanel = () => {
                   : 'text-csfloat-light/70 hover:text-white hover:bg-csfloat-gray/20'
               }`}
             >
-              <span>{tab.icon}</span>
               <span>{tab.label}</span>
             </button>
           ))}
@@ -105,48 +145,71 @@ const AdminPanel = () => {
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <>
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              <StatCard title="Total Users" value={totalUsers} />
-              <StatCard title="Users with API Key" value={usersWithApiKey} />
-              <StatCard title="Users with Trade Link" value={usersWithTradeLink} />
-            </div>
-            {/* Users Table */}
-            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-white">Users</h2>
+            {isLoading ? (
+              <div className="flex justify-center items-center p-10">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-csfloat-blue"></div>
               </div>
-              {isLoading ? (
-                <EmptyState message="Loading users..." />
-              ) : users.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left border-b border-csfloat-gray/20">
-                        <th className="pb-4 text-csfloat-light/70">ID</th>
-                        <th className="pb-4 text-csfloat-light/70">Username</th>
-                        <th className="pb-4 text-csfloat-light/70">API Key</th>
-                        <th className="pb-4 text-csfloat-light/70">Trade Link</th>
-                        <th className="pb-4 text-csfloat-light/70">Created At</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {users.map((user) => (
-                        <tr key={user.id} className="border-b border-csfloat-gray/10 hover:bg-csfloat-gray/5 transition-colors duration-200">
-                          <td className="py-4 text-white">{user.id}</td>
-                          <td className="py-4 text-white">{user.username}</td>
-                          <td className="py-4 text-white">{user.steam_api_key || <span className="text-csfloat-light/50">None</span>}</td>
-                          <td className="py-4 text-white">{user.trade_url || <span className="text-csfloat-light/50">None</span>}</td>
-                          <td className="py-4 text-white">{user.created_at ? new Date(user.created_at).toLocaleString() : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            ) : (
+              <>
+                {/* Page Visit Statistics */}
+                <div className="mb-8">
+                  <h2 className="text-2xl font-semibold mb-4 text-white">Page Visit Statistics</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <StatCard title="Total Visits" value={pageStats?.totalVisits ?? 0} />
+                    <StatCard title="Today's Visits" value={pageStats?.todayVisits ?? 0} />
+                    <StatCard title="Total Users" value={totalUsers} />
+                  </div>
+                  {pageStats && (
+                    <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                      <h3 className="text-lg font-medium text-csfloat-light/90 mb-4">Top Pages</h3>
+                      <div className="space-y-2">
+                        {pageStats.topPages.map((page) => (
+                          <div key={page.page_path} className="flex justify-between items-center text-sm">
+                            <span className="text-csfloat-light/80">{page.page_path}</span>
+                            <span className="text-white font-medium">{page.count} visits</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <EmptyState message="No users found" />
-              )}
-            </div>
+
+                {/* Registered Users */}
+                <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-white">Registered Users</h2>
+                  </div>
+                  {users.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="text-left border-b border-csfloat-gray/20">
+                            <th className="pb-4 text-csfloat-light/70">Steam ID</th>
+                            <th className="pb-4 text-csfloat-light/70">API Key</th>
+                            <th className="pb-4 text-csfloat-light/70">Trade URL</th>
+                            <th className="pb-4 text-csfloat-light/70">App Installed</th>
+                            <th className="pb-4 text-csfloat-light/70">Last Login</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {users.map((user) => (
+                            <tr key={user.id} className="border-b border-csfloat-gray/10 hover:bg-csfloat-gray/5 transition-colors duration-200">
+                              <td className="py-4 text-white">{user.steam_id}</td>
+                              <td className="py-4 text-white">{user.steam_api_key ? 'Yes' : <span className="text-csfloat-light/50">No</span>}</td>
+                              <td className="py-4 text-white">{user.trade_url ? 'Yes' : <span className="text-csfloat-light/50">No</span>}</td>
+                              <td className="py-4 text-white">{user.app_installed ? 'Yes' : <span className="text-csfloat-light/50">No</span>}</td>
+                              <td className="py-4 text-white">{user.last_login ? new Date(user.last_login).toLocaleString() : '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState message="No users found" />
+                  )}
+                </div>
+              </>
+            )}
           </>
         )}
 

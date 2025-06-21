@@ -67,8 +67,8 @@ const webhook = new DiscordWebhook(process.env.DISCORD_WEBHOOK_URL);
 
 // Steam OpenID instance
 const steam = new SteamOpenID({
-  returnUrl: "http://localhost:3002/verify",
-  realm: "http://localhost:3002/",
+  returnUrl: "http://150.136.130.59:3002/verify",
+  realm: "http://150.136.130.59:3002/",
 });
 
 app.get("/verify", async (req, res) => {

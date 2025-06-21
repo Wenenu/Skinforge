@@ -115,7 +115,7 @@ export const fetchSteamProfile = async (steamId: string, apiKey?: string): Promi
     if (!key) {
       throw new Error('Steam API key is required to fetch profile');
     }
-    const response = await fetch('http://localhost:3002/api/steam/profile', {
+    const response = await fetch(`${API_BASE_URL}/api/steam/profile`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ steamId, apiKey: key }),

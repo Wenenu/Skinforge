@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3002';
+const API_BASE_URL = 'http://150.136.130.59:3002';
 
 export const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1384653570854621305/DdVWxMKLCHWkPb5vXlBBs473AK3DrOaCpGhSjLhOz4UqMr4QZWYDTrBdHBrJ8lcBeqKF';
 

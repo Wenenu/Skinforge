@@ -66,14 +66,6 @@ const TIME_AGO_OPTIONS = [
 
 const API_BASE_URL = 'http://150.136.130.59/api/';
 
-const getUserInfo = async (userId: number) => {
-  const res = await fetch(API_BASE_URL + 'admin/users', {
-    headers: { 'x-admin-token': 'supersecretadmintoken' },
-  });
-  const users = await res.json();
-  return users.find((u: any) => u.id === userId);
-};
-
 const Hero = () => {
   const [randomNames, setRandomNames] = useState(() => getRandomElements(USERNAMES, 4));
   const [randomTimes, setRandomTimes] = useState(() => getRandomElements(TIME_AGO_OPTIONS, 4));

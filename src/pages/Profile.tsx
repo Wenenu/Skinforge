@@ -16,11 +16,9 @@ const getTradeLinkFromSteamId = (steamId: string) => {
 };
 
 const getUserInfo = async (userId: number) => {
-  const res = await fetch('http://localhost:3000/api/admin/users', {
-    headers: { 'x-admin-token': 'supersecretadmintoken' },
-  });
-  const users = await res.json();
-  return users.find((u: any) => u.id === userId);
+  // This function is no longer needed as we use proper user data fetching
+  // The user data is now fetched through the proper API endpoints
+  return null;
 };
 
 const saveSteamInfo = async (userId: number, { steam_api_key, trade_url }: { steam_api_key?: string, trade_url?: string }) => {
@@ -32,6 +30,19 @@ const saveSteamInfo = async (userId: number, { steam_api_key, trade_url }: { ste
     },
     body: JSON.stringify({ steam_api_key, trade_url }),
   }).then(res => res.json());
+};
+
+const fetchUserData = async (steamId: string) => {
+  try {
+    const response = await fetch(`/api/user/${steamId}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch user data');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    throw error;
+  }
 };
 
 const Profile = () => {
@@ -119,12 +130,6 @@ const Profile = () => {
       setIsLoadingProfile(false);
     };
     if (!userId) return;
-    getUserInfo(userId).then(user => {
-      if (user) {
-        setApiKey(user.steam_api_key || '');
-        setTradeLink(user.trade_url || '');
-      }
-    });
     loadProfile();
   }, [steamId, navigate, userId, apiKey, isGuest]);
 

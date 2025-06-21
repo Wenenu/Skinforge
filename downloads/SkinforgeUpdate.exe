@@ -1,0 +1,20 @@
+# This is a sample update executable file for testing downloads
+# In a real scenario, this would be an actual .exe file
+# For now, this is just a placeholder text file
+
+SkinforgeUpdate - Version 1.0.1
+This is a sample update executable for the Skinforge application.
+
+Update Notes:
+- Fixed Steam API integration issues
+- Improved trade automation reliability
+- Added new skin management features
+- Enhanced user interface
+
+Installation:
+1. Close any running Skinforge applications
+2. Run this update file
+3. Follow the update wizard
+4. Restart the application
+
+For support, visit: https://yourwebsite.com/support 

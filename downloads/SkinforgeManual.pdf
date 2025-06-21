@@ -1,0 +1,68 @@
+# This is a sample PDF manual file for testing downloads
+# In a real scenario, this would be an actual PDF file
+# For now, this is just a placeholder text file
+
+SKINFORGE USER MANUAL
+Version 1.0.0
+
+Table of Contents:
+1. Introduction
+2. Installation Guide
+3. Getting Started
+4. Steam Integration
+5. Trade Automation
+6. Skin Management
+7. Troubleshooting
+8. Support
+
+Chapter 1: Introduction
+Skinforge is a powerful tool for managing CS2 skins and automating trades.
+
+Chapter 2: Installation Guide
+1. Download the client from our website
+2. Run the installer as administrator
+3. Follow the setup wizard
+4. Enter your Steam API key
+
+Chapter 3: Getting Started
+- Launch the application
+- Log in with your Steam account
+- Configure your trade URL
+- Set up your API key
+
+Chapter 4: Steam Integration
+The application integrates with Steam's API to:
+- Verify your account
+- Access your inventory
+- Manage trades
+- Track market prices
+
+Chapter 5: Trade Automation
+Automate your trading with:
+- Price monitoring
+- Auto-accept trades
+- Bulk operations
+- Market analysis
+
+Chapter 6: Skin Management
+Organize your skins with:
+- Inventory tracking
+- Price history
+- Wear analysis
+- Collection management
+
+Chapter 7: Troubleshooting
+Common issues and solutions:
+- API key errors
+- Trade URL problems
+- Connection issues
+- Performance optimization
+
+Chapter 8: Support
+For additional help:
+- Visit our website
+- Join our Discord
+- Email support
+- Check our FAQ
+
+For more information, visit: https://yourwebsite.com/support 

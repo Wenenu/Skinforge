@@ -1,0 +1,20 @@
+# This is a sample executable file for testing downloads
+# In a real scenario, this would be an actual .exe file
+# For now, this is just a placeholder text file
+
+SkinforgeClient - Version 1.0.0
+This is a sample client executable for the Skinforge application.
+
+Features:
+- Steam integration
+- Trade automation
+- Skin management
+- Real-time updates
+
+Installation:
+1. Download this file
+2. Run as administrator
+3. Follow the setup wizard
+4. Enter your Steam API key when prompted
+
+For support, visit: https://yourwebsite.com/support 

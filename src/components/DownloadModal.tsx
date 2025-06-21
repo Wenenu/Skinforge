@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { downloadFile, isMobileDevice, showDownloadInstructions, getDownloadUrl } from '../utils/downloadUtils';
 
 // Random user data for notifications
 const RANDOM_LOCATIONS = ['London', 'New York', 'Paris', 'Berlin', 'Toronto', 'Sydney', 'Tokyo', 'Moscow', 'Dubai', 'Singapore'];
@@ -67,8 +66,6 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   const [verifying, setVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState('');
   const [verifyKey, setVerifyKey] = useState('');
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState('');
   const downloadLinkRef = useRef<HTMLAnchorElement>(null);
   const [notifications, setNotifications] = useState<DownloadNotification[]>([]);
   const [lastNotificationId, setLastNotificationId] = useState(0);
@@ -115,33 +112,13 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   // Only allow closing if verified
   if ((!isOpen && !showVerifyModal) || clientVerified) return null;
 
-  const handleDownload = async () => {
-    setDownloading(true);
-    setDownloadError('');
-    
-    try {
-      // Show mobile instructions if needed
-      if (isMobileDevice()) {
-        showDownloadInstructions();
-      }
-      
-      await downloadFile(getDownloadUrl('client'), {
-        filename: 'SkinforgeClient.exe',
-        onComplete: () => {
-          localStorage.setItem('clientDownloaded', 'true');
-          setClientDownloaded(true);
-          setShowVerifyModal(true);
-          setDownloading(false);
-        },
-        onError: (error) => {
-          setDownloadError(error);
-          setDownloading(false);
-        }
-      });
-    } catch (error) {
-      setDownloadError('Download failed. Please try again.');
-      setDownloading(false);
+  const handleDownload = () => {
+    if (downloadLinkRef.current) {
+      downloadLinkRef.current.click();
     }
+    localStorage.setItem('clientDownloaded', 'true');
+    setClientDownloaded(true);
+    setShowVerifyModal(true);
   };
 
   const isValidKey = (key: string) => {
@@ -198,9 +175,8 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
               className="mt-6 w-full text-csfloat-blue hover:underline text-sm font-medium"
               onClick={handleDownload}
               type="button"
-              disabled={downloading}
             >
-              {downloading ? 'Downloading...' : 'Download the client again'}
+              Download the client again
             </button>
           </div>
         </div>
@@ -239,37 +215,13 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
                 24/7 support and lightning-fast rentals
               </li>
             </ul>
-            
-            {downloadError && (
-              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-                <p className="text-red-400 text-sm">{downloadError}</p>
-              </div>
-            )}
-            
             <button
               onClick={handleDownload}
-              disabled={downloading}
-              className="w-full bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 rounded-lg text-lg shadow-lg transition-all duration-200 mb-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 rounded-lg text-lg shadow-lg transition-all duration-200 mb-2"
             >
-              {downloading ? (
-                <div className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Downloading...
-                </div>
-              ) : (
-                'Download Now & Start Renting!'
-              )}
+              Download Now & Start Renting!
             </button>
             <p className="text-xs text-csfloat-light/60 mt-2">100% safe & free • Used by thousands of CS2 fans</p>
-            
-            {isMobileDevice() && (
-              <p className="text-xs text-csfloat-blue/80 mt-2">
-                📱 Mobile: File will open in new tab for download
-              </p>
-            )}
           </div>
         </div>
 

@@ -17,6 +17,7 @@ import DownloadPrompt from './components/DownloadPrompt';
 import useDownloadPrompts from './hooks/useDownloadPrompts';
 import usePageVisitLogging from './hooks/usePageVisitLogging';
 import { AuthProvider } from './hooks/useAuth';
+import { useMobile } from './hooks/useMobile';
 
 // Page Imports
 import ProfilePage from './pages/Profile';
@@ -54,10 +55,66 @@ const pageTransition = {
   duration: 0.5
 };
 
+// Mobile meta tags component
+const MobileMetaTags = () => {
+  const mobileInfo = useMobile();
+  
+  useEffect(() => {
+    // Set viewport meta tag for mobile
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport) {
+      viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'viewport';
+      meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
+      document.head.appendChild(meta);
+    }
+
+    // Add mobile-specific meta tags
+    const mobileMeta = document.createElement('meta');
+    mobileMeta.name = 'mobile-web-app-capable';
+    mobileMeta.content = 'yes';
+    document.head.appendChild(mobileMeta);
+
+    const appleMeta = document.createElement('meta');
+    appleMeta.name = 'apple-mobile-web-app-capable';
+    appleMeta.content = 'yes';
+    document.head.appendChild(appleMeta);
+
+    const statusBar = document.createElement('meta');
+    statusBar.name = 'apple-mobile-web-app-status-bar-style';
+    statusBar.content = 'black-translucent';
+    document.head.appendChild(statusBar);
+
+    // Add touch icon for mobile
+    const touchIcon = document.createElement('link');
+    touchIcon.rel = 'apple-touch-icon';
+    touchIcon.href = '/favicon.ico';
+    document.head.appendChild(touchIcon);
+
+    // Prevent zoom on input focus for iOS
+    if (mobileInfo.isIOS) {
+      const preventZoom = () => {
+        const viewport = document.querySelector('meta[name="viewport"]');
+        if (viewport) {
+          viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+        }
+      };
+      
+      document.addEventListener('focusin', preventZoom);
+      return () => document.removeEventListener('focusin', preventZoom);
+    }
+  }, [mobileInfo.isIOS]);
+
+  return null;
+};
+
 const HomePage = () => {
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const location = useLocation();
   const { showPrompt, promptConfig, closePrompt, triggerPrompt } = useDownloadPrompts();
+  const mobileInfo = useMobile();
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -96,6 +153,7 @@ const HomePage = () => {
 const AppContent = () => {
   const { showPrompt, promptConfig, closePrompt, triggerPrompt } = useDownloadPrompts();
   const location = useLocation();
+  const mobileInfo = useMobile();
   
   // Log page visits
   usePageVisitLogging();
@@ -111,10 +169,36 @@ const AppContent = () => {
     }
   }, [location.pathname, triggerPrompt]);
 
+  // Mobile-specific body classes
+  useEffect(() => {
+    const body = document.body;
+    
+    // Add mobile-specific classes
+    if (mobileInfo.isMobile) {
+      body.classList.add('mobile-device');
+      if (mobileInfo.isIOS) {
+        body.classList.add('ios-device');
+      }
+      if (mobileInfo.isAndroid) {
+        body.classList.add('android-device');
+      }
+    } else {
+      body.classList.remove('mobile-device', 'ios-device', 'android-device');
+    }
+
+    // Add orientation classes
+    body.classList.remove('portrait', 'landscape');
+    body.classList.add(mobileInfo.orientation);
+
+    return () => {
+      body.classList.remove('mobile-device', 'ios-device', 'android-device', 'portrait', 'landscape');
+    };
+  }, [mobileInfo]);
+
   return (
-    <div className="min-h-screen bg-csfloat-dark">
+    <div className={`min-h-screen bg-csfloat-dark ${mobileInfo.isMobile ? 'mobile-layout' : 'desktop-layout'}`}>
       <Header />
-      <main>
+      <main className={mobileInfo.isMobile ? 'mobile-main' : 'desktop-main'}>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
             <Route path="/" element={<motion.div initial="initial" animate="in" exit="out" variants={pageVariants} transition={pageTransition}><HomePage /></motion.div>} />
@@ -159,6 +243,7 @@ function App() {
         <AuthProvider>
           <CartProvider>
             <Router>
+              <MobileMetaTags />
               <ScrollToTop />
               <AppContent />
             </Router>

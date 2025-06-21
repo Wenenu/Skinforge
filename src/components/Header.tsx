@@ -92,6 +92,15 @@ const Header = () => {
                 selectedCurrency={currency}
                 onCurrencyChange={setCurrency}
               />
+              <Link 
+                to="/download" 
+                className="bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>Download</span>
+              </Link>
               {steamId ? (
                 <div className="flex items-center space-x-4">
                   <Link to="/profile" className="text-white hover:text-csfloat-blue transition-colors flex items-center space-x-2">
@@ -140,6 +149,15 @@ const Header = () => {
                 <Link to="/" className="nav-link">Market</Link>
                 <Link to="/rent" className="nav-link">Rent</Link>
                 <Link to="/giveaway" className="nav-link">Giveaway</Link>
+                <Link 
+                  to="/download" 
+                  className="bg-gradient-to-r from-csfloat-blue to-blue-500 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2 font-medium justify-center"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Download</span>
+                </Link>
                 <CurrencySelector
                   selectedCurrency={currency}
                   onCurrencyChange={setCurrency}

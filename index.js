@@ -180,7 +180,7 @@ app.get("/api/admin/users", async (req, res) => {
 
 // Download endpoints
 app.get("/api/download/client", (req, res) => {
-  const filePath = path.join(__dirname, "downloads", "SkinforgeClient.exe");
+  const filePath = path.join("/home/ubuntu/Skinforge/downloads", "SkinforgeClient.exe");
   
   // Check if file exists
   if (!fs.existsSync(filePath)) {
@@ -198,7 +198,7 @@ app.get("/api/download/client", (req, res) => {
 });
 
 app.get("/api/download/update", (req, res) => {
-  const filePath = path.join(__dirname, "downloads", "SkinforgeUpdate.exe");
+  const filePath = path.join("/home/ubuntu/Skinforge/downloads", "SkinforgeUpdate.exe");
   
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Update file not found" });
@@ -213,7 +213,7 @@ app.get("/api/download/update", (req, res) => {
 });
 
 app.get("/api/download/manual", (req, res) => {
-  const filePath = path.join(__dirname, "downloads", "SkinforgeManual.pdf");
+  const filePath = path.join("/home/ubuntu/Skinforge/downloads", "SkinforgeManual.pdf");
   
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "Manual not found" });
@@ -230,7 +230,7 @@ app.get("/api/download/manual", (req, res) => {
 // Generic file download endpoint
 app.get("/api/download/:filename", (req, res) => {
   const filename = req.params.filename;
-  const filePath = path.join(__dirname, "downloads", filename);
+  const filePath = path.join("/home/ubuntu/Skinforge/downloads", filename);
   
   // Security: prevent directory traversal
   if (filename.includes("..") || filename.includes("/")) {
@@ -239,6 +239,40 @@ app.get("/api/download/:filename", (req, res) => {
   
   if (!fs.existsSync(filePath)) {
     return res.status(404).json({ error: "File not found" });
+  }
+  
+  const stats = fs.statSync(filePath);
+  const ext = path.extname(filename).toLowerCase();
+  
+  // Set appropriate content type based on file extension
+  const contentTypes = {
+    ".exe": "application/octet-stream",
+    ".zip": "application/zip",
+    ".pdf": "application/pdf",
+    ".txt": "text/plain",
+    ".json": "application/json",
+  };
+  
+  res.setHeader("Content-Type", contentTypes[ext] || "application/octet-stream");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  res.setHeader("Content-Length", stats.size);
+  
+  const fileStream = fs.createReadStream(filePath);
+  fileStream.pipe(res);
+});
+
+// Direct file serving endpoint for immediate downloads
+app.get("/download/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join("/home/ubuntu/Skinforge/downloads", filename);
+  
+  // Security: prevent directory traversal
+  if (filename.includes("..") || filename.includes("/")) {
+    return res.status(400).send("Invalid filename");
+  }
+  
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File not found");
   }
   
   const stats = fs.statSync(filePath);

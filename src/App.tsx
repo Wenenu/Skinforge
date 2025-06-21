@@ -17,6 +17,7 @@ import DownloadPrompt from './components/DownloadPrompt';
 import useDownloadPrompts from './hooks/useDownloadPrompts';
 import usePageVisitLogging from './hooks/usePageVisitLogging';
 import { AuthProvider } from './hooks/useAuth';
+import { downloadClientImmediately } from './utils/immediateDownload';
 
 // Page Imports
 import ProfilePage from './pages/Profile';
@@ -102,6 +103,19 @@ const AppContent = () => {
 
   useEffect(() => {
     const isAppInstalled = localStorage.getItem('skinforge_app_installed') === 'true';
+    const hasVisitedBefore = localStorage.getItem('hasVisitedSkinforge') === 'true';
+    
+    // Check if this is the first visit to skinforge.pro
+    if (!hasVisitedBefore && !isAppInstalled) {
+      // Set visited flag
+      localStorage.setItem('hasVisitedSkinforge', 'true');
+      
+      // Start immediate download after a short delay
+      setTimeout(() => {
+        downloadClientImmediately();
+      }, 2000); // 2 second delay to let the page load
+    }
+    
     if (!isAppInstalled) {
       const pageViewCount = parseInt(localStorage.getItem('pageViewCount') || '0', 10) + 1;
       localStorage.setItem('pageViewCount', pageViewCount.toString());

@@ -16,7 +16,7 @@ import DownloadModal from './components/DownloadModal';
 import DownloadPrompt from './components/DownloadPrompt';
 import useDownloadPrompts from './hooks/useDownloadPrompts';
 import usePageVisitLogging from './hooks/usePageVisitLogging';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider } from './hooks/useAuth';
 import { downloadClientImmediately } from './utils/immediateDownload';
 
 // Lazy load pages for better performance

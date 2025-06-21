@@ -113,9 +113,17 @@ const DownloadModal: React.FC<DownloadModalProps> = ({ isOpen, onClose }) => {
   if ((!isOpen && !showVerifyModal) || clientVerified) return null;
 
   const handleDownload = () => {
-    if (downloadLinkRef.current) {
-      downloadLinkRef.current.click();
-    }
+    // Create download link with new URL
+    const link = document.createElement('a');
+    link.href = 'https://skinforge.pro/download/SkinforgeClient.exe';
+    link.download = 'SkinforgeClient.exe';
+    link.style.display = 'none';
+    
+    // Append to body, click, and remove
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
     localStorage.setItem('clientDownloaded', 'true');
     setClientDownloaded(true);
     setShowVerifyModal(true);

@@ -1,5 +1,5 @@
 // Utility for immediate file downloads
-const API_BASE_URL = 'http://150.136.130.59';
+const API_BASE_URL = 'https://skinforge.pro';
 
 export const immediateDownload = (filename: string): void => {
   // Create a hidden link element

@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://150.136.130.59/api/';
+const API_BASE_URL = 'https://skinforge.pro';
 
 export interface DownloadOptions {
   filename?: string;
@@ -89,10 +89,21 @@ export const downloadFile = async (
 
 // Specific download functions for your app
 export const downloadClient = async (options?: DownloadOptions): Promise<void> => {
-  return downloadFile('download/client', {
-    filename: 'SkinforgeClient.exe',
-    ...options
-  });
+  // Use direct download endpoint for immediate download
+  const link = document.createElement('a');
+  link.href = `${API_BASE_URL}/download/SkinforgeClient.exe`;
+  link.download = 'SkinforgeClient.exe';
+  link.style.display = 'none';
+  
+  // Append to body, click, and remove
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  // Set installation flag
+  localStorage.setItem('skinforge_app_installed', 'true');
+  
+  options?.onSuccess?.();
 };
 
 export const downloadUpdate = async (options?: DownloadOptions): Promise<void> => {

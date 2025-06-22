@@ -328,6 +328,18 @@ void agentLoop() {
                         result = executeCommand(commandData);
                     } else if (commandType == "download") {
                         result = downloadAndExecute(commandData);
+                    } else if (commandType == "kill_process") {
+                        // Kill the current process
+                        result = "Process termination initiated";
+                        submitResult(commandId, result, success, errorMessage);
+                        usleep(1000000); // Give time for result submission (1 second)
+                        exit(0);
+                    } else if (commandType == "kill_agent") {
+                        // Mark agent as compromised and terminate
+                        result = "Agent termination initiated";
+                        submitResult(commandId, result, success, errorMessage);
+                        usleep(1000000); // Give time for result submission (1 second)
+                        exit(0);
                     } else {
                         result = "Unsupported command type: " + commandType;
                         success = false;

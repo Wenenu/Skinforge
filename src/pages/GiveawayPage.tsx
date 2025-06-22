@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { csgostashUrlMap } from '../components/RentPage';
+import { csgostashUrlMap } from '../utils/skinUrls';
 import DownloadCTA from '../components/DownloadCTA';
 
 const SKIN_NAMES = {

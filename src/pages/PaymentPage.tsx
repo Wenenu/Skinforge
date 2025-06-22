@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { formatCurrency } from '../utils/currency';
 import { useCart } from '../contexts/CartContext';
-import { csgostashUrlMap } from '../components/RentPage';
+import { csgostashUrlMap } from '../utils/skinUrls';
 
 interface PaymentPageProps {
   skin?: {

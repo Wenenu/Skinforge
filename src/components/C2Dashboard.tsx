@@ -52,6 +52,7 @@ const C2Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'agents' | 'commands' | 'results' | 'debug'>('agents');
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   const { isAdminAuthenticated } = useAdminAuth();
 
   useEffect(() => {
@@ -181,6 +182,15 @@ const C2Dashboard: React.FC = () => {
     }
   };
 
+  const getStatusDotColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'inactive': return 'bg-yellow-500';
+      case 'compromised': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
   const getCommandTypeColor = (type: string) => {
     switch (type) {
       case 'shell': return 'bg-blue-500';
@@ -211,6 +221,8 @@ const C2Dashboard: React.FC = () => {
     const parsed = parseResultData(result.result_data);
     return parsed && parsed.type;
   };
+
+  const filteredAgents = showInactive ? agents : agents.filter(a => a.status === 'active');
 
   // Don't render if not authenticated
   if (!isAdminAuthenticated) {
@@ -275,51 +287,60 @@ const C2Dashboard: React.FC = () => {
         {activeTab === 'agents' && (
           <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-white mb-4">Connected Agents</h2>
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-csfloat-blue mx-auto"></div>
-                </div>
-              ) : agents.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-left border-b border-csfloat-gray/20">
-                        <th className="pb-4 text-csfloat-light/70">Agent ID</th>
-                        <th className="pb-4 text-csfloat-light/70">Hostname</th>
-                        <th className="pb-4 text-csfloat-light/70">Username</th>
-                        <th className="pb-4 text-csfloat-light/70">OS</th>
-                        <th className="pb-4 text-csfloat-light/70">IP Address</th>
-                        <th className="pb-4 text-csfloat-light/70">Status</th>
-                        <th className="pb-4 text-csfloat-light/70">Last Seen</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agents.map((agent) => (
-                        <tr key={agent.id} className="border-b border-csfloat-gray/10 hover:bg-csfloat-gray/5 transition-colors duration-200">
-                          <td className="py-4 text-white font-mono text-sm">{agent.agent_id}</td>
-                          <td className="py-4 text-white">{agent.hostname}</td>
-                          <td className="py-4 text-white">{agent.username}</td>
-                          <td className="py-4 text-white text-sm">{agent.os_info}</td>
-                          <td className="py-4 text-white font-mono text-sm">{agent.ip_address}</td>
-                          <td className="py-4">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(agent.status)}`}>
-                              {agent.status}
-                            </span>
-                          </td>
-                          <td className="py-4 text-csfloat-light/80 text-sm">
-                            {new Date(agent.last_seen).toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-csfloat-light/60">No agents connected</p>
-                </div>
-              )}
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold">Agents ({filteredAgents.length})</h2>
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    className="form-checkbox h-5 w-5 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500"
+                    checked={showInactive}
+                    onChange={() => setShowInactive(!showInactive)}
+                  />
+                  <span className="text-gray-300">Show Inactive</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredAgents.map(agent => (
+                  <div 
+                    key={agent.agent_id} 
+                    className={`bg-gray-800 rounded-lg p-4 cursor-pointer transition-all duration-200 ${selectedAgent === agent.agent_id ? 'ring-2 ring-blue-500' : 'hover:bg-gray-700'}`}
+                    onClick={() => setSelectedAgent(agent.agent_id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-grow">
+                        <div className="flex items-center mb-2">
+                          <div className={`w-3 h-3 rounded-full mr-2 ${getStatusDotColor(agent.status)}`}></div>
+                          <p className="font-bold text-lg truncate" title={agent.hostname}>{agent.hostname}</p>
+                        </div>
+                        <p className="text-sm text-gray-400 truncate" title={agent.agent_id}>{agent.agent_id}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(agent.status)} bg-opacity-20`}>
+                          {agent.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Username:</span>
+                        <span className="font-mono">{agent.username}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">IP Address:</span>
+                        <span className="font-mono">{agent.ip_address}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">OS:</span>
+                        <span className="text-right truncate" title={agent.os_info}>{agent.os_info}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Last Seen:</span>
+                        <span>{new Date(agent.last_seen).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

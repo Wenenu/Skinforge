@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { csgostashUrlMap } from './RentPage';
+import { csgostashUrlMap } from '../utils/skinUrls';
 import './HeroActivityAnimation.css';
 
 const USERNAMES = [

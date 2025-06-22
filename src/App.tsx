@@ -25,6 +25,7 @@ const ProfilePage = lazy(() => import('./pages/Profile'));
 const PaymentPage = lazy(() => import('./pages/PaymentPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const GiveawayPage = lazy(() => import('./pages/GiveawayPage'));
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const VerifyPage = lazy(() => import('./pages/VerifyPage'));
@@ -90,21 +91,118 @@ const AppContent = () => {
       <main>
         <AnimatePresence mode="wait">
           <Routes location={location} key={location.pathname}>
-            <Route path="/" element={<motion.div><HomePage /></motion.div>} />
-            <Route path="/rent" element={<motion.div><RentPage /></motion.div>} />
-            <Route path="/profile" element={<motion.div><ProfilePage /></motion.div>} />
-            <Route path="/payment" element={<motion.div><PaymentPage /></motion.div>} />
-            <Route path="/download" element={<motion.div><DownloadPage /></motion.div>} />
-            <Route path="/privacy" element={<motion.div><PrivacyPage /></motion.div>} />
+            <Route path="/" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <HomePage />
+              </motion.div>
+            } />
+            <Route path="/rent" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <RentPage />
+              </motion.div>
+            } />
+            <Route path="/profile" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <ProfilePage />
+              </motion.div>
+            } />
+            <Route path="/payment" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <PaymentPage />
+              </motion.div>
+            } />
+            <Route path="/download" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <DownloadPage />
+              </motion.div>
+            } />
+            <Route path="/privacy" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <PrivacyPage />
+              </motion.div>
+            } />
+            <Route path="/giveaway" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <GiveawayPage />
+              </motion.div>
+            } />
             <Route path="/admin" element={
-              <motion.div>
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
                 <ProtectedRoute>
                   <AdminPanel />
                 </ProtectedRoute>
               </motion.div>
             } />
-            <Route path="/admin/login" element={<motion.div><AdminLogin /></motion.div>} />
-            <Route path="/verify" element={<motion.div><VerifyPage /></motion.div>} />
+            <Route path="/admin/login" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <AdminLogin />
+              </motion.div>
+            } />
+            <Route path="/verify" element={
+              <motion.div
+                initial="initial"
+                animate="in"
+                exit="out"
+                variants={pageVariants}
+                transition={pageTransition}
+              >
+                <VerifyPage />
+              </motion.div>
+            } />
           </Routes>
         </AnimatePresence>
       </main>

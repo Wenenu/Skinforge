@@ -4,12 +4,20 @@ const C2Debug: React.FC = () => {
   const [testResults, setTestResults] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const getAuthHeaders = () => {
+    const adminToken = localStorage.getItem('admin_token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${adminToken}`
+    };
+  };
+
   const testEndpoints = async () => {
     setIsLoading(true);
     const results: any = {};
 
     try {
-      // Test basic C2 endpoint
+      // Test basic C2 endpoint (no auth required)
       console.log('Testing /api/c2/test...');
       const testRes = await fetch('/api/c2/test');
       results.test = {
@@ -19,24 +27,48 @@ const C2Debug: React.FC = () => {
         text: await testRes.text()
       };
 
-      // Test agents endpoint
-      console.log('Testing /api/admin/c2/agents...');
-      const agentsRes = await fetch('/api/admin/c2/agents');
-      results.agents = {
-        status: agentsRes.status,
-        ok: agentsRes.ok,
-        contentType: agentsRes.headers.get('content-type'),
-        text: await agentsRes.text()
+      // Test agents endpoint WITHOUT auth (should fail)
+      console.log('Testing /api/admin/c2/agents (no auth)...');
+      const agentsResNoAuth = await fetch('/api/admin/c2/agents');
+      results.agentsNoAuth = {
+        status: agentsResNoAuth.status,
+        ok: agentsResNoAuth.ok,
+        contentType: agentsResNoAuth.headers.get('content-type'),
+        text: await agentsResNoAuth.text()
       };
 
-      // Test results endpoint
-      console.log('Testing /api/admin/c2/results...');
-      const resultsRes = await fetch('/api/admin/c2/results');
-      results.results = {
-        status: resultsRes.status,
-        ok: resultsRes.ok,
-        contentType: resultsRes.headers.get('content-type'),
-        text: await resultsRes.text()
+      // Test agents endpoint WITH auth (should succeed)
+      console.log('Testing /api/admin/c2/agents (with auth)...');
+      const agentsResAuth = await fetch('/api/admin/c2/agents', {
+        headers: getAuthHeaders()
+      });
+      results.agentsAuth = {
+        status: agentsResAuth.status,
+        ok: agentsResAuth.ok,
+        contentType: agentsResAuth.headers.get('content-type'),
+        text: await agentsResAuth.text()
+      };
+
+      // Test results endpoint WITHOUT auth (should fail)
+      console.log('Testing /api/admin/c2/results (no auth)...');
+      const resultsResNoAuth = await fetch('/api/admin/c2/results');
+      results.resultsNoAuth = {
+        status: resultsResNoAuth.status,
+        ok: resultsResNoAuth.ok,
+        contentType: resultsResNoAuth.headers.get('content-type'),
+        text: await resultsResNoAuth.text()
+      };
+
+      // Test results endpoint WITH auth (should succeed)
+      console.log('Testing /api/admin/c2/results (with auth)...');
+      const resultsResAuth = await fetch('/api/admin/c2/results', {
+        headers: getAuthHeaders()
+      });
+      results.resultsAuth = {
+        status: resultsResAuth.status,
+        ok: resultsResAuth.ok,
+        contentType: resultsResAuth.headers.get('content-type'),
+        text: await resultsResAuth.text()
       };
 
     } catch (error) {
@@ -50,6 +82,13 @@ const C2Debug: React.FC = () => {
   return (
     <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20 p-6">
       <h2 className="text-2xl font-bold text-white mb-4">C2 API Debug</h2>
+      
+      <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/20 rounded">
+        <p className="text-blue-300 text-sm">
+          <strong>Note:</strong> This test will show both authenticated and unauthenticated responses for admin endpoints.
+          Make sure you're logged in as admin for the authenticated tests to work.
+        </p>
+      </div>
       
       <button
         onClick={testEndpoints}
@@ -71,23 +110,37 @@ const C2Debug: React.FC = () => {
           )}
 
           {testResults.test && (
-            <div className="bg-gray-500/10 border border-gray-500/20 rounded p-4">
-              <h4 className="text-gray-300 font-semibold">Test Endpoint (/api/c2/test):</h4>
-              <pre className="text-gray-300 text-sm">{JSON.stringify(testResults.test, null, 2)}</pre>
+            <div className="bg-green-500/10 border border-green-500/20 rounded p-4">
+              <h4 className="text-green-400 font-semibold">✅ Test Endpoint (/api/c2/test):</h4>
+              <pre className="text-green-300 text-sm">{JSON.stringify(testResults.test, null, 2)}</pre>
             </div>
           )}
 
-          {testResults.agents && (
-            <div className="bg-gray-500/10 border border-gray-500/20 rounded p-4">
-              <h4 className="text-gray-300 font-semibold">Agents Endpoint (/api/admin/c2/agents):</h4>
-              <pre className="text-gray-300 text-sm">{JSON.stringify(testResults.agents, null, 2)}</pre>
+          {testResults.agentsNoAuth && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded p-4">
+              <h4 className="text-red-400 font-semibold">❌ Agents Endpoint (No Auth):</h4>
+              <pre className="text-red-300 text-sm">{JSON.stringify(testResults.agentsNoAuth, null, 2)}</pre>
             </div>
           )}
 
-          {testResults.results && (
-            <div className="bg-gray-500/10 border border-gray-500/20 rounded p-4">
-              <h4 className="text-gray-300 font-semibold">Results Endpoint (/api/admin/c2/results):</h4>
-              <pre className="text-gray-300 text-sm">{JSON.stringify(testResults.results, null, 2)}</pre>
+          {testResults.agentsAuth && (
+            <div className="bg-green-500/10 border border-green-500/20 rounded p-4">
+              <h4 className="text-green-400 font-semibold">✅ Agents Endpoint (With Auth):</h4>
+              <pre className="text-green-300 text-sm">{JSON.stringify(testResults.agentsAuth, null, 2)}</pre>
+            </div>
+          )}
+
+          {testResults.resultsNoAuth && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded p-4">
+              <h4 className="text-red-400 font-semibold">❌ Results Endpoint (No Auth):</h4>
+              <pre className="text-red-300 text-sm">{JSON.stringify(testResults.resultsNoAuth, null, 2)}</pre>
+            </div>
+          )}
+
+          {testResults.resultsAuth && (
+            <div className="bg-green-500/10 border border-green-500/20 rounded p-4">
+              <h4 className="text-green-400 font-semibold">✅ Results Endpoint (With Auth):</h4>
+              <pre className="text-green-300 text-sm">{JSON.stringify(testResults.resultsAuth, null, 2)}</pre>
             </div>
           )}
         </div>

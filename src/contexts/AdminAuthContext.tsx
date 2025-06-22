@@ -21,9 +21,8 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const adminLogin = async (username: string, password: string): Promise<boolean> => {
     try {
-      // In a real implementation, this would be an API call to your backend
-      // For demo purposes, we'll use hardcoded credentials
-      if (username === 'admin' && password === 'admin123') {
+      // Updated credentials to match backend
+      if (username === 'west' && password === 'Ilovejoshua') {
         const token = btoa(`${username}:${password}`); // Basic token generation (not secure for production)
         localStorage.setItem('admin_token', token);
         setIsAdminAuthenticated(true);

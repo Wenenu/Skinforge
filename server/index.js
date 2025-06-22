@@ -559,9 +559,11 @@ const authenticateAdmin = (req, res, next) => {
     const decoded = Buffer.from(token, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
     
-    // In a real implementation, you would validate against a database
-    // For now, we'll use the same hardcoded credentials as the frontend
-    if (username === 'admin' && password === 'admin123') {
+    // Debug logging
+    console.log('Admin auth attempt:', { username, password, token });
+    
+    // Updated credentials
+    if (username === 'west' && password === 'Ilovejoshua') {
       req.adminUser = { username };
       next();
     } else {

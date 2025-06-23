@@ -212,6 +212,35 @@ const C2Dashboard: React.FC = () => {
     }
   };
 
+  const deleteAgent = async (agentId: string) => {
+    if (!confirm(`Are you sure you want to permanently delete this agent? This action cannot be undone and will remove all associated data.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/c2/agents/${encodeURIComponent(agentId)}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Agent deleted successfully: ${result.message}`);
+        fetchData(); // Refresh data
+      } else {
+        try {
+          const errorData = await response.json();
+          alert(`Failed to delete agent: ${errorData.error || response.statusText}`);
+        } catch {
+          alert(`Failed to delete agent: Server returned status ${response.status}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      alert('Error deleting agent');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'text-green-500';
@@ -381,7 +410,7 @@ const C2Dashboard: React.FC = () => {
                     </div>
                     {/* Kill Agent Buttons */}
                     <div className="mt-4 pt-3 border-t border-gray-700">
-                      <div className="flex space-x-2">
+                      <div className="flex space-x-2 mb-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -401,6 +430,18 @@ const C2Dashboard: React.FC = () => {
                           title="Terminate the agent completely (marks as compromised)"
                         >
                           Kill Agent
+                        </button>
+                      </div>
+                      <div className="flex">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteAgent(agent.agent_id);
+                          }}
+                          className="w-full bg-gray-800 hover:bg-gray-700 text-red-400 hover:text-red-300 px-3 py-1 rounded text-xs font-medium transition-colors border border-gray-600 hover:border-gray-500"
+                          title="Permanently delete this agent and all associated data"
+                        >
+                          🗑️ Delete Agent
                         </button>
                       </div>
                     </div>

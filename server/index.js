@@ -36,7 +36,7 @@ if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database
 
 // --- Middleware ---
 app.use(express.json());
-app.use(cors({ origin: FRONTEND_URL, credentials: true }));
+app.use(cors({ origin: true, credentials: true }));
 app.use('/download', express.static('/home/ubuntu/public/downloads'));
 
 // --- Services ---

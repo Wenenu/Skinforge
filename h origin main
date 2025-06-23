@@ -1,0 +1,5 @@
+[33m9da4fff[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Add delete agent functionality to C2 dashboard - Added DELETE endpoint for agents in server - Added delete button to agent cards in frontend - Delete removes agent and all associated data from database - Delete also removes uploaded files for the agent - Added confirmation dialog for delete action
+[33m39c6a00[m[33m ([m[1;31morigin/main[m[33m)[m fix(c2): handle kill command error and fix command data
+[33ma38c68e[m fix(c2): url-encode agentId and improve error handling
+[33m1e74359[m working
+[33m79ce441[m Add kill command functionality to C2 system - Add kill_process and kill_agent command types - Update database schema to support new kill commands - Add kill agent endpoint to server API - Add kill buttons to C2 dashboard agent cards - Implement kill command handling in all agent types (Windows, Linux, Python) - Update documentation with kill command usage

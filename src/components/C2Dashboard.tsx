@@ -148,10 +148,9 @@ const C2Dashboard: React.FC = () => {
 
   const downloadFile = async (agentId: string, filename: string) => {
     try {
-      const adminToken = localStorage.getItem('admin_token');
-      const response = await fetch(`/api/admin/c2/download/${agentId}/${filename}`, {
+      const response = await fetch(`/api/admin/c2/download/${encodeURIComponent(agentId)}/${filename}`, {
         headers: {
-          'Authorization': `Bearer ${adminToken}`
+          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
         }
       });
       if (response.ok) {
@@ -165,7 +164,12 @@ const C2Dashboard: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
-        alert('Failed to download file');
+        try {
+          const errorData = await response.json();
+          alert(`Failed to download file: ${errorData.error || response.statusText}`);
+        } catch {
+          alert(`Failed to download file: Server returned status ${response.status}`);
+        }
       }
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -179,7 +183,7 @@ const C2Dashboard: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`/api/admin/c2/kill/${agentId}`, {
+      const response = await fetch(`/api/admin/c2/kill/${encodeURIComponent(agentId)}`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ killType })
@@ -190,7 +194,12 @@ const C2Dashboard: React.FC = () => {
         alert(`Kill command sent successfully: ${result.message}`);
         fetchData(); // Refresh data
       } else {
-        alert('Failed to send kill command');
+        try {
+          const errorData = await response.json();
+          alert(`Failed to send kill command: ${errorData.error || response.statusText}`);
+        } catch {
+          alert(`Failed to send kill command: Server returned status ${response.status}`);
+        }
       }
     } catch (error) {
       console.error('Error killing agent:', error);

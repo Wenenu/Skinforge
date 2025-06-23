@@ -64,10 +64,15 @@ const C2Dashboard: React.FC = () => {
   }, [isAdminAuthenticated]);
 
   const getAuthHeaders = () => {
-    const adminToken = localStorage.getItem('admin_token');
+    const token = localStorage.getItem('admin_token');
+    if (!token) {
+      // This should not happen if the component is rendered
+      // because of the isAdminAuthenticated check
+      return {}; 
+    }
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
+      'Authorization': `Bearer ${token}`
     };
   };
 

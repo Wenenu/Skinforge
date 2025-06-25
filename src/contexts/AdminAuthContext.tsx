@@ -23,8 +23,27 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const adminLogin = async (username: string, password: string): Promise<boolean> => {
-    // Always fail on frontend; backend will handle real auth
-    return false;
+    try {
+      // Create base64 token
+      const token = btoa(`${username}:${password}`);
+      // Try to access a protected admin endpoint
+      const res = await fetch('/api/admin/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.ok) {
+        localStorage.setItem('admin_token', token);
+        setIsAdminAuthenticated(true);
+        return true;
+      } else {
+        setIsAdminAuthenticated(false);
+        return false;
+      }
+    } catch (error) {
+      setIsAdminAuthenticated(false);
+      return false;
+    }
   };
 
   const adminLogout = () => {

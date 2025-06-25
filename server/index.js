@@ -579,11 +579,7 @@ const ADMIN_USER = 'west';
 const ADMIN_PASS = 'Ilovejoshuasm11!';
 
 const authenticateAdmin = (req, res, next) => {
-  const allowedIp = '66.65.111.7';
-  const requestIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.connection.remoteAddress || req.ip;
-  if (requestIp !== allowedIp) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  // IP restriction removed for now
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'No valid authorization header' });
@@ -593,6 +589,8 @@ const authenticateAdmin = (req, res, next) => {
     // Decode the base64 token (username:password format)
     const decoded = Buffer.from(token, 'base64').toString('utf-8');
     const [username, password] = decoded.split(':');
+    // TEMP DEBUG LOG: Print received credentials
+    console.log('[DEBUG] Admin login attempt:', { username, password });
     if (username === ADMIN_USER && password === ADMIN_PASS) {
       req.adminUser = { username };
       next();

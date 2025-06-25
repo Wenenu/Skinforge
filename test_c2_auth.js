@@ -3,8 +3,8 @@ const fetch = require('node-fetch');
 const C2_SERVER = 'http://localhost:3002';
 
 // Admin credentials (base64 encoded)
-const ADMIN_USERNAME = 'west';
-const ADMIN_PASSWORD = 'Ilovejoshua';
+const ADMIN_USERNAME = process.env.ADMIN_USER;
+const ADMIN_PASSWORD = process.env.ADMIN_PASS;
 const ADMIN_TOKEN = Buffer.from(`${ADMIN_USERNAME}:${ADMIN_PASSWORD}`).toString('base64');
 
 async function testEndpoint(endpoint, method = 'GET', body = null, useAuth = false) {

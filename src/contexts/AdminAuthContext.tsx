@@ -11,6 +11,9 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
 
+  const ADMIN_USER = process.env.REACT_APP_ADMIN_USER;
+  const ADMIN_PASS = process.env.REACT_APP_ADMIN_PASS;
+
   useEffect(() => {
     // Check if admin is already authenticated
     const adminToken = localStorage.getItem('admin_token');
@@ -20,19 +23,8 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const adminLogin = async (username: string, password: string): Promise<boolean> => {
-    try {
-      // Updated credentials to match backend
-      if (username === 'west' && password === 'Ilovejoshua') {
-        const token = btoa(`${username}:${password}`); // Basic token generation (not secure for production)
-        localStorage.setItem('admin_token', token);
-        setIsAdminAuthenticated(true);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Error during admin login:', error);
-      return false;
-    }
+    // Always fail on frontend; backend will handle real auth
+    return false;
   };
 
   const adminLogout = () => {

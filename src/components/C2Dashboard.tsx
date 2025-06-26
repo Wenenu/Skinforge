@@ -576,7 +576,7 @@ const C2Dashboard: React.FC = () => {
 // --- Helper Functions & Components for Overview Tab ---
 
 const isImportantLog = (log: Log) => {
-    if (log.log_type === 'wallets' || log.log_type === 'steam') {
+    if (log.log_type === 'steam') {
         return true;
     }
     if (log.log_type === 'browsers' && log.data?.logins?.length > 0) {
@@ -644,13 +644,6 @@ const OverviewTab: React.FC<{agents: Agent[], logs: Log[], logStatsByDay: any[]}
                 subValue={`${regularLogs.length} regular`}
                 color="bg-blue-500"
                 icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
-           />
-           <OverviewStatCard 
-                title="Wallet" 
-                value="₿ 0.00006"
-                subValue="~ $0.58 USD"
-                color="bg-purple-600"
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h.01M9 16h.01" /></svg>}
            />
         </div>
 

@@ -672,28 +672,105 @@ const LogsTab: React.FC<{logs: Log[], onSelectLog: (log: Log) => void, onDeleteL
 }
 
 const LogViewer: React.FC<{log: Log}> = ({ log }) => {
-    // A simple recursive renderer for JSON data
-    const renderJson = (data: any) => {
-        if (typeof data !== 'object' || data === null) {
-            return <span className="text-green-400">{JSON.stringify(data)}</span>;
-        }
+    // --- Cookie Sorting/Filtering UI for 'browsers' logs ---
+    const [selectedSite, setSelectedSite] = React.useState<string>('');
+    const [sortKey, setSortKey] = React.useState<'name' | 'value'>('name');
+    const [sortAsc, setSortAsc] = React.useState<boolean>(true);
 
-        if (Array.isArray(data)) {
-            return (
-                <div className="pl-4 border-l border-gray-700">
-                    {data.map((item, index) => <div key={index}>{renderJson(item)}</div>)}
-                </div>
-            );
-        }
+    // Helper to extract all cookies grouped by domain/site
+    const getCookiesBySite = (data: any) => {
+        const cookies: any[] = [];
+        // Chromium browsers
+        Object.values(data.chromium || {}).forEach((browser: any) => {
+            if (Array.isArray(browser.cookies)) {
+                cookies.push(...browser.cookies);
+            }
+        });
+        // Gecko browsers
+        Object.values(data.gecko || {}).forEach((browser: any) => {
+            if (Array.isArray(browser.cookies)) {
+                cookies.push(...browser.cookies);
+            }
+        });
+        // Group by domain
+        const grouped: Record<string, any[]> = {};
+        cookies.forEach(cookie => {
+            const domain = cookie.domain || 'unknown';
+            if (!grouped[domain]) grouped[domain] = [];
+            grouped[domain].push(cookie);
+        });
+        return grouped;
+    };
 
+    // Only show cookie UI for browsers logs
+    if (log.log_type === 'browsers') {
+        const cookiesBySite = getCookiesBySite(log.data);
+        const allSites = Object.keys(cookiesBySite).sort();
+        const site = selectedSite && cookiesBySite[selectedSite] ? selectedSite : allSites[0] || '';
+        const cookies = cookiesBySite[site] || [];
+        const sortedCookies = [...cookies].sort((a, b) => {
+            if (a[sortKey] < b[sortKey]) return sortAsc ? -1 : 1;
+            if (a[sortKey] > b[sortKey]) return sortAsc ? 1 : -1;
+            return 0;
+        });
         return (
-            <div className="pl-4 border-l border-gray-700">
-                {Object.entries(data).map(([key, value]) => (
-                    <div key={key}>
-                        <span className="text-blue-400">{key}: </span>
-                        {renderJson(value)}
-                    </div>
-                ))}
+            <div className="bg-csfloat-darker rounded p-4 border border-csfloat-gray/10">
+                <div className="mb-4 flex flex-wrap gap-4 items-center">
+                    <label className="text-csfloat-light/80 font-medium">Site:</label>
+                    <select
+                        value={site}
+                        onChange={e => setSelectedSite(e.target.value)}
+                        className="bg-csfloat-dark border border-csfloat-gray/20 rounded px-2 py-1 text-white"
+                    >
+                        {allSites.map(domain => (
+                            <option key={domain} value={domain}>{domain}</option>
+                        ))}
+                    </select>
+                    <label className="ml-4 text-csfloat-light/80 font-medium">Sort by:</label>
+                    <select
+                        value={sortKey}
+                        onChange={e => setSortKey(e.target.value as 'name' | 'value')}
+                        className="bg-csfloat-dark border border-csfloat-gray/20 rounded px-2 py-1 text-white"
+                    >
+                        <option value="name">Name</option>
+                        <option value="value">Value</option>
+                    </select>
+                    <button
+                        className="ml-2 px-2 py-1 rounded border border-csfloat-gray/20 text-white bg-csfloat-blue hover:bg-blue-600"
+                        onClick={() => setSortAsc(a => !a)}
+                    >
+                        {sortAsc ? 'Asc' : 'Desc'}
+                    </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className="bg-csfloat-dark/80">
+                                <th className="px-2 py-1 text-left">Name</th>
+                                <th className="px-2 py-1 text-left">Value</th>
+                                <th className="px-2 py-1 text-left">Domain</th>
+                                <th className="px-2 py-1 text-left">Path</th>
+                                <th className="px-2 py-1 text-left">Expires</th>
+                                <th className="px-2 py-1 text-left">HttpOnly</th>
+                                <th className="px-2 py-1 text-left">Secure</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {sortedCookies.map((cookie, idx) => (
+                                <tr key={idx} className="border-b border-csfloat-gray/10">
+                                    <td className="px-2 py-1 font-mono text-csfloat-blue break-all">{cookie.name}</td>
+                                    <td className="px-2 py-1 font-mono text-csfloat-light/90 break-all">{cookie.value}</td>
+                                    <td className="px-2 py-1 font-mono">{cookie.domain}</td>
+                                    <td className="px-2 py-1 font-mono">{cookie.path}</td>
+                                    <td className="px-2 py-1 font-mono">{cookie.expires || ''}</td>
+                                    <td className="px-2 py-1 font-mono">{cookie.http_only ? 'Yes' : 'No'}</td>
+                                    <td className="px-2 py-1 font-mono">{cookie.secure ? 'Yes' : 'No'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {sortedCookies.length === 0 && <div className="text-csfloat-light/70 py-4">No cookies for this site.</div>}
+                </div>
             </div>
         );
     }

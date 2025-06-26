@@ -49,6 +49,7 @@ interface Command {
 const C2Dashboard: React.FC = () => {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
+  const [logStatsByDay, setLogStatsByDay] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
   const [commandType, setCommandType] = useState<'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process'>('shell');
   const [commandData, setCommandData] = useState('');
@@ -106,7 +107,17 @@ const C2Dashboard: React.FC = () => {
         console.error('Logs endpoint failed:', logsRes.status, logsRes.statusText);
       }
 
-      // TODO: Set stats data once endpoint is ready
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        const formattedStats = statsData.map((stat: any) => ({
+            date: new Date(stat.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            important: stat.important || 0,
+            regular: stat.regular || 0,
+        }));
+        setLogStatsByDay(formattedStats);
+      } else {
+        console.error('Log stats endpoint failed:', statsRes.status, statsRes.statusText);
+      }
       
     } catch (error) {
       console.error('Error fetching C2 data:', error);
@@ -360,7 +371,7 @@ const C2Dashboard: React.FC = () => {
         ) : (
           <>
             {/* Overview Tab */}
-            {activeTab === 'overview' && <OverviewTab agents={agents} logs={logs} />}
+            {activeTab === 'overview' && <OverviewTab agents={agents} logs={logs} logStatsByDay={logStatsByDay} />}
 
             {/* Agents Tab - simplified, as full details are in logs */}
             {activeTab === 'agents' && (
@@ -586,24 +597,12 @@ const OverviewStatCard: React.FC<{ title: string, value: string, subValue?: stri
 );
 
 
-const OverviewTab: React.FC<{agents: Agent[], logs: Log[]}> = ({ agents, logs }) => {
+const OverviewTab: React.FC<{agents: Agent[], logs: Log[], logStatsByDay: any[]}> = ({ agents, logs, logStatsByDay }) => {
   
-  const { importantLogs, regularLogs, logStatsByDay } = useMemo(() => {
+  const { importantLogs, regularLogs } = useMemo(() => {
     const importantLogs = logs.filter(isImportantLog);
     const regularLogs = logs.filter(log => !isImportantLog(log));
-    
-    // This should be replaced with data from a dedicated backend endpoint
-    const logStatsByDay = [...Array(30)].map((_, i) => {
-        const date = new Date();
-        date.setDate(date.getDate() - (29 - i));
-        return {
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-            important: Math.floor(Math.random() * 50 + 10),
-            regular: Math.floor(Math.random() * 200 + 50),
-        };
-    });
-
-    return { importantLogs, regularLogs, logStatsByDay };
+    return { importantLogs, regularLogs };
   }, [logs]);
 
   const logTypeData = [

